@@ -199,3 +199,4 @@ Application dependencies use their own licenses (see `package.json`).
 <p align="center">
   <strong>AnimaStage Lite</strong> · WebMMD Studio · <code>animastage-lite@1.0.0</code>
 </p>
+ 
