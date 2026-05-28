@@ -1,0 +1,72 @@
+# Google Play Console — WebMMD Suite (com.webmmd.suite)
+# Copy sections into Play Console → Main store listing
+
+## App name
+WebMMD Suite
+
+## Short description (max 80 chars)
+MMD viewer & animator: load PMX models, VMD motion, timeline and effects.
+
+## Short description RU (max 80 chars)
+Просмотр и анимация MMD: PMX-модели, VMD-моушн, таймлайн и эффекты.
+
+## Full description EN
+WebMMD Suite is a mobile studio for MMD (MikuMikuDance) content on your phone.
+
+Load a model folder or ZIP with PMX/PMD, textures, and optional VMD motion files. Preview in 3D, play animations, adjust morphs and bones, use the timeline, and apply visual effects.
+
+Features:
+• Import PMX/PMD + textures (PNG, TGA, BMP) from ZIP or folder
+• VMD motion playback with optional camera motion
+• Timeline with keyframes and animation templates
+• Morph and bone controls
+• MMD physics (when supported on device)
+• Portrait fullscreen interface optimized for phones
+
+User-provided content only — you supply your own models and motions. The app does not include copyrighted characters or music.
+
+Requirements: Android 6.0+, OpenGL ES 3.0 recommended for best performance.
+
+## Full description RU
+WebMMD Suite — мобильная студия для MMD (MikuMikuDance) на телефоне.
+
+Загрузите папку или ZIP с PMX/PMD, текстурами и при необходимости VMD-моушном. Просматривайте модель в 3D, воспроизводите анимацию, настраивайте морфы и кости, работайте с таймлайном и визуальными эффектами.
+
+Возможности:
+• Импорт PMX/PMD + текстур (PNG, TGA, BMP) из ZIP или папки
+• Воспроизведение VMD с опциональной камерой
+• Таймлайн с ключевыми кадрами и шаблонами
+• Управление морфами и костями
+• MMD-физика (если поддерживается устройством)
+• Полноэкранный портретный интерфейс для телефонов
+
+Только пользовательский контент — вы загружаете свои модели и моушны. Приложение не содержит чужих персонажей и музыки.
+
+Требования: Android 6.0+, для лучшей производительности рекомендуется OpenGL ES 3.0.
+
+## Category suggestion
+Tools or Entertainment
+
+## Privacy policy URL
+Host public/privacy-policy.html on HTTPS, for example:
+- GitHub Pages
+- Google Sites
+- Your website
+
+Example after hosting: https://YOUR_DOMAIN/privacy-policy.html
+
+## Data safety (Play Console questionnaire)
+- Does your app collect or share user data? → No
+- Is all data encrypted in transit? → N/A (no data sent)
+- Can users request data deletion? → N/A
+- Data types collected: None
+
+## Content rating
+Complete IARC questionnaire honestly. Typical result for a local file tool: Everyone or Teen depending on answers about user-generated content.
+
+## Release notes v1.0.0
+Initial release:
+• Load MMD models (PMX/PMD) from ZIP
+• VMD motion playback
+• Timeline, morphs, bones
+• Mobile-optimized UI

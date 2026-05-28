@@ -1,0 +1,6 @@
+{
+  "name": "Web MMD Suite",
+  "description": "Modern 3D MikuMikuDance web application for 3D animation, styling slide controls, and timeline frames.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

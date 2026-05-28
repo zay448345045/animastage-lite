@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["src"],
+  "exclude": [
+    "capacitor.config.ts",
+    "src/pathTracer/**",
+    "src/native/**",
+    "src/engine",
+    "src/physics",
+    "src/utils/webgpuSupport.ts",
+    "src/components/mmdFrameLoop.ts",
+    "src/components/AdaptiveMaterials.tsx",
+    "src/components/SceneEnvironment.tsx",
+    "src/components/SceneParticles.tsx",
+    "src/components/VisualFxPanel.tsx",
+    "src/components/CameraStudioPanel.tsx",
+    "src/render/mmdSkinnedNodeMaterial.ts",
+    "src/render/mmdSkinnedWebGPUBinder.ts",
+    "src/render/index.ts",
+    "src/hooks/useShortVideoRecorder.ts",
+    "src/utils/materialQuality.ts",
+    "src/utils/platform.ts",
+    "src/utils/frameBudget.ts",
+    "src/camera/**"
+  ]
+}

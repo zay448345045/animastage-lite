@@ -1,0 +1,262 @@
+import { useCallback } from 'react';
+import type { AppState, MMDModel, TimelineKeyframe, TimelineTrackId } from '../types';
+import { createEmptyKeyframes, mergeTimelineKeyframes } from '../components/TimelineLogic';
+import { createDefaultLayers } from '../editor/animationLayers';
+import type { useClipEditor } from './useClipEditor';
+import { buildVmdFromTimeline, downloadVmd } from '../editor/vmdExport';
+import { stepPlayhead } from './useEditorKeyboard';
+
+type ClipEditor = ReturnType<typeof useClipEditor>;
+
+function markDirty(models: MMDModel[], modelId: string | null): MMDModel[] {
+  if (!modelId) return models;
+  return models.map((m) => (m.id === modelId ? { ...m, clipDirty: true } : m));
+}
+
+export function useEditorDocument(
+  appState: AppState,
+  setAppState: React.Dispatch<React.SetStateAction<AppState>>,
+  clipEditor: ClipEditor,
+  handlers: {
+    setCurrentFrame: (f: number) => void;
+    setIsPlaying: (p: boolean) => void;
+    setTimelineActiveTrack: (t: AppState['timelineActiveTrack']) => void;
+    handleDeleteKeyframe: (modelId: string, track: string, frame: number) => void;
+  }
+) {
+  const selectedId = appState.selectedObjectId;
+  const selectedModel = appState.models.find((m) => m.id === selectedId);
+
+  const updateModelKeyframes = useCallback(
+    (modelId: string, keyframes: TimelineKeyframe[], commit = true) => {
+      setAppState((prev) => ({
+        ...prev,
+        models: markDirty(
+          prev.models.map((m) =>
+            m.id === modelId
+              ? {
+                  ...m,
+                  keyframes: commit ? clipEditor.commit(keyframes) : keyframes,
+                }
+              : m
+          ),
+          modelId
+        ),
+      }));
+    },
+    [setAppState, clipEditor]
+  );
+
+  const handleUndo = useCallback(() => {
+    if (!selectedId || !selectedModel) return;
+    const prev = clipEditor.applyUndo(selectedModel.keyframes);
+    setAppState((s) => ({
+      ...s,
+      models: s.models.map((m) => (m.id === selectedId ? { ...m, keyframes: prev } : m)),
+    }));
+  }, [selectedId, selectedModel, clipEditor, setAppState]);
+
+  const handleRedo = useCallback(() => {
+    if (!selectedId || !selectedModel) return;
+    const next = clipEditor.applyRedo(selectedModel.keyframes);
+    setAppState((s) => ({
+      ...s,
+      models: s.models.map((m) => (m.id === selectedId ? { ...m, keyframes: next } : m)),
+    }));
+  }, [selectedId, selectedModel, clipEditor, setAppState]);
+
+  const handleCopy = useCallback(() => {
+    if (!selectedModel) return;
+    clipEditor.copyAtFrame(selectedModel.keyframes, appState.currentFrame);
+  }, [selectedModel, appState.currentFrame, clipEditor]);
+
+  const handlePaste = useCallback(() => {
+    if (!selectedId || !selectedModel) return;
+    const next = clipEditor.pasteAtFrame(selectedModel.keyframes, appState.currentFrame, false);
+    updateModelKeyframes(selectedId, next, false);
+  }, [selectedId, selectedModel, appState.currentFrame, clipEditor, updateModelKeyframes]);
+
+  const handleMirrorPaste = useCallback(() => {
+    if (!selectedId || !selectedModel) return;
+    const next = clipEditor.pasteAtFrame(selectedModel.keyframes, appState.currentFrame, true);
+    updateModelKeyframes(selectedId, next, false);
+  }, [selectedId, selectedModel, appState.currentFrame, clipEditor, updateModelKeyframes]);
+
+  const handleExportVmd = useCallback(() => {
+    if (!selectedModel) return;
+    const buf = buildVmdFromTimeline({
+      keyframes: selectedModel.keyframes,
+      maxFrames: appState.maxFrames,
+      bones: selectedModel.bones,
+      morphs: selectedModel.morphs,
+      clipName: selectedModel.name,
+    });
+    downloadVmd(buf, `${selectedModel.name.replace(/\s+/g, '_')}.vmd`);
+    setAppState((prev) => ({
+      ...prev,
+      models: prev.models.map((m) =>
+        m.id === selectedModel.id ? { ...m, clipDirty: false } : m
+      ),
+    }));
+  }, [selectedModel, appState.maxFrames, setAppState]);
+
+  const handleNewClip = useCallback(() => {
+    if (!selectedId) return;
+    setAppState((prev) => ({
+      ...prev,
+      models: prev.models.map((m) =>
+        m.id === selectedId
+          ? {
+              ...m,
+              keyframes: createEmptyKeyframes(),
+              activeTemplateId: null,
+              vmdPlaybackEnabled: false,
+              clipDirty: true,
+            }
+          : m
+      ),
+      currentFrame: 0,
+      isPlaying: false,
+    }));
+    clipEditor.clearUndo();
+  }, [selectedId, setAppState, clipEditor]);
+
+  const handleSimplifyTrack = useCallback(() => {
+    const track = appState.timelineActiveTrack;
+    if (!selectedId || !selectedModel || !track || track === 'camera') return;
+    const next = clipEditor.simplify(selectedModel.keyframes, track as TimelineTrackId);
+    updateModelKeyframes(selectedId, next, false);
+  }, [selectedId, selectedModel, appState.timelineActiveTrack, clipEditor, updateModelKeyframes]);
+
+  const handleClearTrack = useCallback(() => {
+    const track = appState.timelineActiveTrack;
+    if (!selectedId || !selectedModel || !track || track === 'camera') return;
+    const next = clipEditor.clearTrack(selectedModel.keyframes, track as TimelineTrackId);
+    updateModelKeyframes(selectedId, next, false);
+  }, [selectedId, selectedModel, appState.timelineActiveTrack, clipEditor, updateModelKeyframes]);
+
+  const handleTimeStretch = useCallback(
+    (factor: number) => {
+      if (!selectedId || !selectedModel) return;
+      const next = clipEditor.stretch(
+        selectedModel.keyframes,
+        factor,
+        appState.maxFrames
+      );
+      updateModelKeyframes(selectedId, next, false);
+    },
+    [selectedId, selectedModel, appState.maxFrames, clipEditor, updateModelKeyframes]
+  );
+
+  const handleMoveKeyframe = useCallback(
+    (track: TimelineTrackId, from: number, to: number) => {
+      if (!selectedId || !selectedModel) return;
+      const next = clipEditor.moveKey(selectedModel.keyframes, track, from, to);
+      updateModelKeyframes(selectedId, next, false);
+    },
+    [selectedId, selectedModel, clipEditor, updateModelKeyframes]
+  );
+
+  const handlePatchKeyframe = useCallback(
+    (
+      track: TimelineTrackId,
+      frame: number,
+      patch: Partial<TimelineKeyframe>
+    ) => {
+      if (!selectedId || !selectedModel) return;
+      const next = selectedModel.keyframes.map((kf) =>
+        kf.track === track && kf.frame === frame ? { ...kf, ...patch } : kf
+      );
+      updateModelKeyframes(selectedId, next);
+    },
+    [selectedId, selectedModel, updateModelKeyframes]
+  );
+
+  const handleDeleteAtPlayhead = useCallback(() => {
+    const track = appState.timelineActiveTrack;
+    if (!selectedId || !track || track === 'camera') return;
+    handlers.handleDeleteKeyframe(selectedId, track, appState.currentFrame);
+    setAppState((prev) => ({
+      ...prev,
+      models: markDirty(prev.models, selectedId),
+    }));
+  }, [selectedId, appState.timelineActiveTrack, appState.currentFrame, handlers, setAppState]);
+
+  const handlePmxMetadata = useCallback(
+    (
+      modelId: string,
+      meta: {
+        bones: import('../types').PmxBoneInfo[];
+        morphs: import('../types').PmxMorphInfo[];
+        materials: import('../types').PmxMaterialInfo[];
+      }
+    ) => {
+      const defaultGroups = [
+        {
+          id: 'arms',
+          name: 'Arms',
+          boneNames: meta.bones
+            .filter((b) => /腕|肩|arm|elbow/i.test(b.name))
+            .map((b) => b.name),
+          muted: false,
+          solo: false,
+        },
+        {
+          id: 'legs',
+          name: 'Legs',
+          boneNames: meta.bones
+            .filter((b) => /足|脚|leg|thigh/i.test(b.name))
+            .map((b) => b.name),
+          muted: false,
+          solo: false,
+        },
+      ];
+      setAppState((prev) => ({
+        ...prev,
+        models: prev.models.map((m) =>
+          m.id === modelId
+            ? {
+                ...m,
+                pmxBones: meta.bones,
+                pmxMorphs: meta.morphs,
+                pmxMaterials: meta.materials,
+                boneGroups: m.boneGroups ?? defaultGroups,
+                animLayers: m.animLayers ?? createDefaultLayers(m.keyframes),
+              }
+            : m
+        ),
+      }));
+    },
+    [setAppState]
+  );
+
+  const handleSelectPmxBone = useCallback(
+    (boneName: string) => {
+      setAppState((prev) => ({ ...prev, selectedBoneId: boneName }));
+    },
+    [setAppState]
+  );
+
+  return {
+    handleUndo,
+    handleRedo,
+    handleCopy,
+    handlePaste,
+    handleMirrorPaste,
+    handleExportVmd,
+    handleNewClip,
+    handleSimplifyTrack,
+    handleClearTrack,
+    handleTimeStretch,
+    handleMoveKeyframe,
+    handlePatchKeyframe,
+    handleDeleteAtPlayhead,
+    handlePmxMetadata,
+    handleSelectPmxBone,
+    updateModelKeyframes,
+    stepFrame: (d: number) => {
+      const f = stepPlayhead(d, appState.maxFrames);
+      handlers.setCurrentFrame(f);
+    },
+  };
+}
