@@ -1,10 +1,12 @@
 # AnimaStage Lite
 
-**Web studio for MikuMikuDance** — preview and edit scenes in the browser: PMX/PMD models, VMD motion, timeline, cloth physics, cinematic lighting, and vertical video export without installing MikuMikuDance.
-
 **Live demo:** [animastage-lite.app](https://animastage-lite.app/) · **Studio:** [animastage-lite.app/app](https://animastage-lite.app/app) · **Source:** [github.com/FBNonaMe/animastage-lite](https://github.com/FBNonaMe/animastage-lite)
 
 [![AnimaStage Lite studio — PMX model, timeline, morph and bone tracks, WebGL viewport](docs/images/studio-screenshot.png)](https://animastage-lite.app/app)
+
+
+**Web studio for MikuMikuDance** — preview and edit scenes in the browser: PMX/PMD models, VMD motion, timeline, cloth physics, cinematic lighting, and vertical video export without installing MikuMikuDance.
+
 
 [![React](https://img.shields.io/badge/React-19-61dafb?logo=react)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-r184-black?logo=three.js)](https://threejs.org/)
