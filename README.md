@@ -134,17 +134,6 @@ npm run dev
 | `http://localhost:3000/` | Landing |
 | `http://localhost:3000/app` | Studio |
 
-### Android app (download)
-
-Debug APK for sideload: **[app-debug.apk](/app-debug.apk)** (~19 MB) — also linked on the [landing page](https://animastage-lite.app/#android).
-
-Rebuild web + APK into `public/`:
-
-```bash
-cd android && gradlew.bat assembleDebug
-cd .. && npm run sync:android:assets && npm run build
-```
-
 ```bash
 npm run build    # → dist/
 npm run preview
