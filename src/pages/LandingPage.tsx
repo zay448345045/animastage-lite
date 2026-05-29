@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   Play,
   ChevronRight,
@@ -19,57 +20,82 @@ interface LandingPageProps {
   onStartDemo: () => void;
 }
 
+const SITE_URL = 'https://animastage-lite.app';
+
 const FEATURES = [
   {
-    title: 'Drop PMX & VMD',
-    desc: 'Drag MikuMikuDance models and motion files — no install.',
+    title: 'Instant browser preview',
+    desc: 'Drop your MikuMikuDance model and see it live in seconds — no install, no Windows-only lock-in.',
   },
   {
-    title: 'Timeline & export',
-    desc: 'Dopesheet, curves, and VMD export in the browser.',
+    title: 'Play any VMD motion',
+    desc: 'Load dances and emotes without opening desktop MMD. Scrub the timeline in real time.',
   },
   {
-    title: 'Cloth physics',
-    desc: 'Bullet WASM for skirt, hair, and accessories.',
+    title: 'Realistic cloth physics',
+    desc: 'Skirt, hair, and accessories move with Bullet WASM while you preview.',
   },
   {
-    title: 'RTX Lite FX',
-    desc: 'Bloom, DOF, weather presets — tuned for speed.',
+    title: 'Cinematic looks, fast GPU',
+    desc: 'Bloom, depth of field, and weather-style presets without a gaming PC.',
   },
   {
-    title: '9:16 Shorts',
-    desc: 'Stable portrait mode · 1080×1920 export.',
+    title: 'Shorts-ready 9:16',
+    desc: 'One click to frame for TikTok, Reels, and YouTube Shorts at 1080×1920.',
   },
   {
-    title: 'MP4 recording',
-    desc: 'WebCodecs HQ or Live capture — clean frame, no gizmos.',
+    title: 'Clean MP4 export',
+    desc: 'Record share-ready video — no gizmos or grid in the final frame.',
+  },
+  {
+    title: 'Private by default',
+    desc: 'PMX and VMD processing runs client-side on your device.',
   },
   {
     title: 'Android app',
-    desc: 'Install the studio on your phone — same PMX, VMD, timeline & FX.',
+    desc: 'Same MMD studio on your phone — sideload the APK and create on the go.',
   },
+] as const;
+
+const USE_CASES = [
+  { label: 'VTuber motion checks', desc: 'Preview dances before stream — in a tab.' },
+  { label: 'Dance cover Shorts', desc: 'Batch vertical clips without desktop MMD.' },
+  { label: 'Indie dev prototyping', desc: 'Test PMX/VMD in WebGL before shipping.' },
+  { label: 'Chromebook & Mac', desc: 'MMD online where desktop MMD does not run.' },
 ] as const;
 
 const FAQ = [
   {
-    q: 'Do I need MikuMikuDance installed?',
-    a: 'No. Load PMX/PMD and VMD in the browser. Prepare assets in MMD or download ready-made models.',
+    q: 'What is MMD online?',
+    a: 'MMD online means running MikuMikuDance-style workflows in a web browser — loading PMX models and VMD motions without installing desktop MMD. AnimaStage Lite is a full browser studio with physics, timeline, and video export.',
   },
   {
-    q: 'Which browser works best?',
-    a: 'Chrome or Edge with WebGL2. MP4 HQ export needs WebCodecs (Chrome/Edge recommended).',
+    q: 'Can I run MikuMikuDance in the browser?',
+    a: 'You cannot run the official MMD executable in a browser, but AnimaStage Lite supports the same file formats (PMX/PMD, VMD) and lets you preview, edit, and export video online using WebGL2.',
   },
   {
-    q: 'Are my files uploaded to a server?',
-    a: 'Core studio runs client-side. Your models stay on your device unless you enable optional cloud features.',
+    q: 'Does AnimaStage Lite work without install?',
+    a: 'Yes. Open the studio in Chrome or Edge — no download required. An optional Android APK is available if you prefer a native app on your phone.',
   },
   {
-    q: 'What is the difference vs AnimaStage Pro?',
-    a: 'Lite is fast preview and Shorts. Pro adds multi-character, cinematic camera, and full RTX pipeline.',
+    q: 'Is AnimaStage Lite free?',
+    a: 'The Lite studio is free to use in the browser and open source on GitHub. Optional AI features may require your own API key. AnimaStage Pro is a separate advanced product.',
   },
   {
-    q: 'Is there an Android app?',
-    a: 'Yes. Download the debug APK below (sideload). Enable “Install unknown apps” for your browser or file manager. Google Play is not available yet.',
+    q: 'What file formats are supported?',
+    a: 'PMX and PMD models, VMD motion (including camera tracks), textures, and HDR environments. Export includes MP4 (WebCodecs on Chrome/Edge) and VMD from the timeline editor.',
+  },
+  {
+    q: 'Can I export vertical video for TikTok and YouTube Shorts?',
+    a: 'Yes. Switch to 9:16 portrait mode and export at 1080×1920. The studio optimizes performance for stable vertical recording.',
+  },
+  {
+    q: 'Are my models uploaded to a server?',
+    a: 'Core editing runs client-side in your browser. Files are not uploaded for basic load-and-play unless you enable optional cloud or collab features.',
+  },
+  {
+    q: 'MMD online vs desktop MMD — which should I use?',
+    a: 'Use AnimaStage Lite for quick previews, Shorts, and any device with a modern browser. Use desktop MikuMikuDance for legacy plugins and long-form traditional MMD production.',
   },
 ] as const;
 
@@ -77,6 +103,43 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    document.title = 'MMD Online — Run PMX & VMD in Browser | AnimaStage Lite';
+
+    const faqSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: FAQ.map((item) => ({
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: { '@type': 'Answer', text: item.a },
+      })),
+    };
+
+    const appSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'AnimaStage Lite',
+      applicationCategory: 'MultimediaApplication',
+      operatingSystem: 'Web Browser, Android',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      description:
+        'Browser-based MMD online studio. Load PMX and VMD, preview with physics, export 9:16 Shorts.',
+      url: SITE_URL,
+      downloadUrl: `${SITE_URL}/app-debug.apk`,
+    };
+
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'landing-jsonld';
+    script.textContent = JSON.stringify([faqSchema, appSchema]);
+    document.head.appendChild(script);
+
+    return () => {
+      document.getElementById('landing-jsonld')?.remove();
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] text-zinc-100 font-sans antialiased">
@@ -98,6 +161,9 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
             </button>
             <button type="button" onClick={() => scrollTo('features')} className="hover:text-cyan-400 transition-colors cursor-pointer">
               Features
+            </button>
+            <button type="button" onClick={() => scrollTo('compare')} className="hover:text-cyan-400 transition-colors cursor-pointer">
+              Compare
             </button>
             <button type="button" onClick={() => scrollTo('android')} className="hover:text-cyan-400 transition-colors cursor-pointer">
               Android
@@ -141,13 +207,18 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
                 </p>
 
                 <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.25rem] leading-[1.08] tracking-tight text-white mb-5">
-                  Run MMD in your browser.
-                  <span className="block text-zinc-400 font-bold text-3xl sm:text-4xl mt-1">No install.</span>
+                  Run MMD online in your browser
+                  <span className="block text-zinc-400 font-bold text-3xl sm:text-4xl mt-1">
+                    No install required
+                  </span>
                 </h1>
 
                 <p className="text-zinc-400 text-base sm:text-lg leading-relaxed max-w-xl mx-auto lg:mx-0 mb-8">
-                  Drag your MikuMikuDance model and motion. Preview with cloth physics and lighting.
-                  Export <strong className="text-zinc-200 font-semibold">1080×1920 Shorts</strong> — in one tab.
+                  <strong className="text-zinc-200 font-semibold">AnimaStage Lite</strong> is a{' '}
+                  <strong className="text-zinc-300">MikuMikuDance browser</strong> studio — drag{' '}
+                  <strong className="text-zinc-300">PMX</strong> and <strong className="text-zinc-300">VMD</strong>,
+                  preview with cloth physics, export <strong className="text-zinc-200 font-semibold">1080×1920 Shorts</strong>.
+                  Built for creators, VTubers, and indie devs. Also on Android.
                 </p>
 
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center lg:justify-start mb-6">
@@ -231,10 +302,10 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
         <section id="how" className="py-16 md:py-20 scroll-mt-16">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <h2 className="font-display font-bold text-2xl sm:text-3xl text-center text-white mb-3">
-              How it works
+              How AnimaStage Lite works
             </h2>
             <p className="text-zinc-500 text-center mb-12 max-w-lg mx-auto">
-              Three steps from landing to your first clip.
+              Three steps from landing to your first clip — fast 3D animation online workflow.
             </p>
 
             <div className="grid md:grid-cols-3 gap-6">
@@ -242,20 +313,20 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
                 {
                   step: '1',
                   icon: Upload,
-                  title: 'Drop PMX + VMD',
-                  desc: 'Drag your model and motion onto the viewport — or open the demo rig.',
+                  title: 'Drop your PMX model and VMD motion',
+                  desc: 'Drag files onto the viewport or open the demo rig — PMX viewer online, no desktop MMD.',
                 },
                 {
                   step: '2',
                   icon: Play,
-                  title: 'Play & adjust',
-                  desc: 'Scrub the timeline, tune FX and physics, switch to 9:16 for Shorts.',
+                  title: 'Preview with physics and lighting in real time',
+                  desc: 'Scrub the timeline, tune FX, switch to 9:16 for vertical anime animation.',
                 },
                 {
                   step: '3',
                   icon: Video,
-                  title: 'Export MP4',
-                  desc: 'Record HQ or Live — clean frame, no editor gizmos in the video.',
+                  title: 'Edit on the timeline and export vertical video',
+                  desc: 'Record MP4 with a clean frame — WebCodecs HQ or Live capture.',
                 },
               ].map(({ step, icon: Icon, title, desc }) => (
                 <div
@@ -266,6 +337,54 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
                   <Icon className="w-8 h-8 text-cyan-400 mb-4" strokeWidth={1.5} />
                   <h3 className="font-semibold text-zinc-100 mb-2">{title}</h3>
                   <p className="text-sm text-zinc-500 leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* SEO body copy */}
+        <section id="about" className="py-16 border-t border-zinc-800/60 bg-zinc-950/30 scroll-mt-16">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6">
+            <h2 className="font-display font-bold text-2xl sm:text-3xl text-white mb-6 text-center">
+              MikuMikuDance online — without installing anything
+            </h2>
+            <div className="text-sm sm:text-base text-zinc-400 leading-relaxed space-y-4">
+              <p>
+                AnimaStage Lite brings <strong className="text-zinc-300">MMD online</strong> to Chrome, Edge,
+                Firefox, and Android. Load <strong className="text-zinc-300">PMX/PMD</strong> characters, apply{' '}
+                <strong className="text-zinc-300">VMD</strong> dances, scrub a timeline, tune morphs and bones, and
+                export <strong className="text-zinc-300">MP4</strong> — including{' '}
+                <strong className="text-zinc-300">9:16 vertical</strong> for Shorts and Reels.
+              </p>
+              <p>
+                Unlike desktop MMD, there is no DirectX setup and no OS barrier. The app runs client-side in WebGL — your
+                models stay on your machine. Ideal for <strong className="text-zinc-300">VTubers</strong> checking motion,
+                dance cover creators batching vertical clips, and developers prototyping character animation in the browser.
+              </p>
+              <p>
+                The workflow is deliberately fast: drag files → play → adjust camera → export. Cloth physics, bloom, DOF,
+                and weather presets add polish without a gaming GPU. Power users get VMD export, animation layers, and an
+                installable <strong className="text-zinc-300">Android APK</strong>.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Use cases */}
+        <section className="py-16 border-t border-zinc-800/60">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <h2 className="font-display font-bold text-2xl sm:text-3xl text-center text-white mb-3">
+              Built for creators, VTubers, and indie devs
+            </h2>
+            <p className="text-zinc-500 text-center mb-10 max-w-xl mx-auto text-sm">
+              WebGL animation tools for anyone who needs MMD in the browser — not a static model viewer.
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {USE_CASES.map((u) => (
+                <div key={u.label} className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+                  <h3 className="font-semibold text-zinc-100 text-sm mb-1.5">{u.label}</h3>
+                  <p className="text-xs text-zinc-500 leading-relaxed">{u.desc}</p>
                 </div>
               ))}
             </div>
@@ -315,10 +434,13 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
         {/* Features */}
         <section id="features" className="py-16 md:py-20 scroll-mt-16">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl sm:text-3xl text-center text-white mb-12">
-              Built for speed
+            <h2 className="font-display font-bold text-2xl sm:text-3xl text-center text-white mb-3">
+              Everything you need for browser MMD — in one tab
             </h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <p className="text-zinc-500 text-center mb-12 max-w-xl mx-auto text-sm">
+              Run 3D models in the browser with a full WebMMD studio — not just a PMX viewer online.
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {FEATURES.map((f) => (
                 <div
                   key={f.title}
@@ -343,8 +465,9 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
               </div>
               <div>
                 <h2 className="font-display font-bold text-2xl text-white mb-3">
-                  Shorts-ready 9:16 Lite
+                  Export vertical anime video for Shorts &amp; Reels
                 </h2>
+                <h3 className="text-sm font-semibold text-cyan-400/90 mb-2">1080×1920 · 9:16 Lite mode</h3>
                 <p className="text-zinc-400 text-sm leading-relaxed mb-4">
                   Portrait mode caps DPR and heavy FX so WebGL stays stable on everyday laptops.
                   Export native vertical Full HD for TikTok, Reels, and YouTube Shorts.
@@ -361,12 +484,16 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
           </div>
         </section>
 
-        {/* Lite vs Pro */}
-        <section className="py-16 border-t border-zinc-800/60">
+        {/* MMD online vs desktop */}
+        <section id="compare" className="py-16 border-t border-zinc-800/60 scroll-mt-16">
           <div className="max-w-3xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl text-center text-white mb-8">
-              Lite vs Pro
+            <h2 className="font-display font-bold text-2xl text-center text-white mb-2">
+              MMD online vs desktop MikuMikuDance
             </h2>
+            <p className="text-zinc-500 text-center text-sm mb-8 max-w-lg mx-auto">
+              Use Lite as a companion — preview and Shorts in the browser, finish in desktop MMD or Pro when needed.
+            </p>
+            <h3 className="sr-only">Lite vs Pro product comparison</h3>
             <div className="rounded-xl border border-zinc-800 overflow-hidden text-sm">
               <table className="w-full">
                 <thead>
@@ -378,9 +505,14 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
                 </thead>
                 <tbody className="text-zinc-400 divide-y divide-zinc-800">
                   <tr>
-                    <td className="p-3 text-zinc-500">Focus</td>
-                    <td className="p-3">Fast preview &amp; Shorts</td>
-                    <td className="p-3">Cinematic production</td>
+                    <td className="p-3 text-zinc-500">Best for</td>
+                    <td className="p-3">MMD online · fast preview &amp; Shorts</td>
+                    <td className="p-3">Cinematic multi-character production</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 text-zinc-500">Platform</td>
+                    <td className="p-3">Browser + Android APK</td>
+                    <td className="p-3">Desktop WebGL pipeline</td>
                   </tr>
                   <tr>
                     <td className="p-3 text-zinc-500">Try</td>
@@ -418,8 +550,9 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
                   New — Android integration
                 </p>
                 <h2 className="font-display font-bold text-2xl sm:text-3xl text-white mb-4">
-                  AnimaStage Lite on your phone
+                  AnimaStage Lite on Android
                 </h2>
+                <h3 className="text-sm font-semibold text-zinc-300 mb-4">Same studio — installable APK</h3>
                 <p className="text-zinc-400 text-sm sm:text-base leading-relaxed mb-6">
                   The same studio as in the browser — installable Android app. PMX, VMD, timeline, FX,
                   and Shorts export without a desktop.
@@ -472,7 +605,10 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
         {/* FAQ */}
         <section id="faq" className="py-16 border-t border-zinc-800/60 scroll-mt-16">
           <div className="max-w-2xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl text-center text-white mb-8">FAQ</h2>
+            <h2 className="font-display font-bold text-2xl text-center text-white mb-2">
+              Frequently asked questions
+            </h2>
+            <p className="text-zinc-600 text-center text-xs mb-8">MMD online · PMX · VMD · browser · Android</p>
             <div className="space-y-3">
               {FAQ.map((item) => (
                 <details
@@ -494,9 +630,11 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
         <section className="py-20 border-t border-zinc-800/60">
           <div className="max-w-2xl mx-auto px-4 text-center">
             <h2 className="font-display font-bold text-3xl text-white mb-4">
-              Open tab. Drop PMX. Hit play.
+              Start creating in 60 seconds
             </h2>
-            <p className="text-zinc-500 mb-8">Free · Open source · No account required</p>
+            <p className="text-zinc-500 mb-8">
+              Free WebMMD studio · Open source · No account · MMD online in one tab
+            </p>
             <button
               type="button"
               onClick={onStart}

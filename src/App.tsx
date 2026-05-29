@@ -57,6 +57,13 @@ const DEFAULT_MORPHS: MorphState = {
 };
 
 export default function App() {
+  useEffect(() => {
+    document.title = 'MMD Studio — Edit PMX & VMD Online | AnimaStage Lite';
+    return () => {
+      document.title = 'MMD Online — Run PMX & VMD in Browser | AnimaStage Lite';
+    };
+  }, []);
+
   // App primary state
   const [appState, setAppState] = useState<AppState>({
     objects: [
