@@ -20,12 +20,12 @@
   <img src="https://img.shields.io/badge/Format-PMX%20%2F%20PMD%20%2F%20VMD-purple" alt="Format"/>
   <img src="https://img.shields.io/badge/Shorts-9%3A16%20Ready-ff69b4" alt="Shorts"/>
   <a href="https://animastage-lite.app"><img src="https://img.shields.io/badge/🌐-Lite%20Demo-blue" alt="Lite Demo"/></a>
-  <a href="https://animastagepro.dev"><img src="https://img.shields.io/badge/🎬-Pro%20Demo-violet" alt="Pro Demo"/></a>
+  <a href="https://animastagepro.dev/"><img src="https://img.shields.io/badge/🎬-Pro%20Demo-violet" alt="Pro Demo"/></a>
 </p>
 
 <p align="center">
   <b>This repository</b> → <a href="https://github.com/FBNonaMe/animastage-lite"><strong>AnimaStage Lite</strong></a> (open source)<br>
-  <b>Sibling project</b> → <a href="https://github.com/gtausa197-svg/AnimaStage-Pro"><strong>AnimaStage Pro</strong></a> · <a href="https://animastagepro.dev">demo</a>
+  <b>Sibling project</b> → <a href="https://animastagepro.dev/"><strong>AnimaStage Pro</strong></a> · <a href="https://github.com/gtausa197-svg/AnimaStage-Pro">source</a>
 </p>
 
 ---
@@ -36,10 +36,10 @@
 
 We ship **two editions** for different jobs:
 
-| | [**AnimaStage Lite**](https://animastage-lite.app) · **this repo** | [**AnimaStage Pro**](https://animastagepro.dev) · [source](https://github.com/gtausa197-svg/AnimaStage-Pro) |
+| | [**AnimaStage Lite**](https://animastage-lite.app) · **this repo** | [**AnimaStage Pro**](https://animastagepro.dev/) · [GitHub](https://github.com/gtausa197-svg/AnimaStage-Pro) |
 |---|---|---|
 | **Focus** | Fast preview · Shorts / Reels / TikTok | Full cinematic production |
-| **Live** | [animastage-lite.app](https://animastage-lite.app) · [Studio `/app`](https://animastage-lite.app/app) | [animastagepro.dev](https://animastagepro.dev) |
+| **Live** | [animastage-lite.app](https://animastage-lite.app) · [Studio `/app`](https://animastage-lite.app/app) | [animastagepro.dev/](https://animastagepro.dev/) |
 | **Source** | [FBNonaMe/animastage-lite](https://github.com/FBNonaMe/animastage-lite) | [gtausa197-svg/AnimaStage-Pro](https://github.com/gtausa197-svg/AnimaStage-Pro) |
 | **Stack** | React 19 · Vite · R3F · TypeScript | WebGL EffectComposer pipeline |
 | **Renderer** | WebGL 2.0, DPR 1× in 9:16 Lite | Full post-FX stack (SSAO, DOF, volumetrics, bloom) |
@@ -105,14 +105,14 @@ We ship **two editions** for different jobs:
 
 </details>
 
-### What Pro adds ([demo](https://animastagepro.dev) · [repo](https://github.com/gtausa197-svg/AnimaStage-Pro))
+### What Pro adds ([demo](https://animastagepro.dev/) · [repo](https://github.com/gtausa197-svg/AnimaStage-Pro))
 
 - Multi-character scenes with per-character VMD  
 - Full bone animation editor (G/R/S, mirror, anatomy limits)  
 - Cinematic camera spline + dual timeline  
 - Full RTX-style composer (SSAO → DOF → volumetric → bloom → grade)  
 - Scene outliner, session save/load JSON  
-- See the [Pro demo](https://animastagepro.dev) and [Pro repository](https://github.com/gtausa197-svg/AnimaStage-Pro) for the full pipeline  
+- See the [Pro demo](https://animastagepro.dev/) and [Pro repository](https://github.com/gtausa197-svg/AnimaStage-Pro) for the full pipeline  
 
 ---
 
@@ -203,7 +203,7 @@ Docs: [docs/ANIMASTAGE_LITE.md](docs/ANIMASTAGE_LITE.md) · Security: [SECURITY.
 | Edition | Website | Repository |
 |---------|---------|------------|
 | **Lite** | [animastage-lite.app](https://animastage-lite.app) | [github.com/FBNonaMe/animastage-lite](https://github.com/FBNonaMe/animastage-lite) |
-| **Pro** | [animastagepro.dev](https://animastagepro.dev) | [github.com/gtausa197-svg/AnimaStage-Pro](https://github.com/gtausa197-svg/AnimaStage-Pro) |
+| **Pro** | [animastagepro.dev/](https://animastagepro.dev/) | [github.com/gtausa197-svg/AnimaStage-Pro](https://github.com/gtausa197-svg/AnimaStage-Pro) |
 
 Contributions welcome on **Lite** — issues and PRs on GitHub.
 
@@ -228,7 +228,7 @@ Open-source **AnimaStage Lite** — see `LICENSE` in this repository (if present
 
 **MMD models, motions, and textures** belong to their authors. Use only content you have rights to publish and record.
 
-**AnimaStage Pro** is a separate project — [source](https://github.com/gtausa197-svg/AnimaStage-Pro) · [demo](https://animastagepro.dev) · see Pro `LICENSE` for terms.
+**AnimaStage Pro** is a separate project — [animastagepro.dev/](https://animastagepro.dev/) · [source](https://github.com/gtausa197-svg/AnimaStage-Pro) · see Pro `LICENSE` for terms.
 
 ---
 
@@ -236,7 +236,7 @@ Open-source **AnimaStage Lite** — see `LICENSE` in this repository (if present
   <i>🎬 "Drop the PMX. Hit play. No install required."</i><br><br>
   <a href="https://animastage-lite.app/app"><b>AnimaStage Lite</b></a>
   &nbsp;·&nbsp;
-  <a href="https://animastagepro.dev"><b>AnimaStage Pro</b></a>
+  <a href="https://animastagepro.dev/"><b>AnimaStage Pro</b></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/gtausa197-svg/AnimaStage-Pro">Pro on GitHub</a><br>
   <code>animastage-lite@1.0.0</code>
