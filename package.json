@@ -11,6 +11,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "sync:android:assets": "powershell -ExecutionPolicy Bypass -File scripts/sync-android-assets.ps1",
+    "indexnow:submit": "powershell -ExecutionPolicy Bypass -File scripts/submit-indexnow.ps1",
     "build:android:release": "npm run sync:android:assets && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
