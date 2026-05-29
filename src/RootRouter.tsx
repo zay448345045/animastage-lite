@@ -10,6 +10,10 @@ function normalizePath(pathname: string): string {
   return pathname || '/';
 }
 
+function isAppPath(path: string): boolean {
+  return path === '/app' || path.startsWith('/app/');
+}
+
 export default function RootRouter() {
   const [path, setPath] = useState(() => normalizePath(window.location.pathname));
 
@@ -20,14 +24,22 @@ export default function RootRouter() {
   }, []);
 
   const navigateTo = (next: string) => {
-    const target = next.startsWith('/') ? next : `/${next}`;
-    window.history.pushState({}, '', target);
+    const q = next.indexOf('?');
+    const pathname = q >= 0 ? next.slice(0, q) : next;
+    const search = q >= 0 ? next.slice(q) : '';
+    const target = pathname.startsWith('/') ? pathname : `/${pathname}`;
+    window.history.pushState({}, '', `${target}${search}`);
     setPath(normalizePath(target));
   };
 
-  if (path === '/app' || path.startsWith('/app/')) {
+  if (isAppPath(path)) {
     return <App />;
   }
 
-  return <LandingPage onStart={() => navigateTo('/app')} />;
+  return (
+    <LandingPage
+      onStart={() => navigateTo('/app')}
+      onStartDemo={() => navigateTo('/app?demo=1')}
+    />
+  );
 }

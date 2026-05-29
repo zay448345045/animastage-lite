@@ -36,6 +36,8 @@ import type { AnimationLayerDef, TimelineKeyframe, TimelineTrackId } from './typ
 import { mergeTimelineKeyframes } from './components/TimelineLogic';
 import { useCollab } from './hooks/useCollab';
 import type { CollabClipPayload } from './collab/collabSync';
+import { useIsMobileStudio } from './hooks/useMediaQuery';
+import MobileStudioBar from './components/MobileStudioBar';
 
 // Standard Bones preset
 const DEFAULT_BONES: BoneState[] = [
@@ -95,8 +97,11 @@ export default function App() {
   const clipEditor = useClipEditor();
 
   // UI responsive styling state
+  const isMobile = useIsMobileStudio();
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [showTimelinePanel, setShowTimelinePanel] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [openTopMenuId, setOpenTopMenuId] = useState<string | null>(null);
 
   // Viewport setup states (passed to TopMenu & Viewport)
   const [showGrid, setShowGrid] = useState(true);
@@ -110,6 +115,21 @@ export default function App() {
     enabled: appState.rtxModeEnabled,
     settings: appState.rtxSettings,
   });
+
+  const [demoHint, setDemoHint] = useState(false);
+  const demoBootRef = useRef(false);
+
+  useEffect(() => {
+    if (isMobile) {
+      setShowLeftSidebar(false);
+      setShowTimelinePanel(false);
+    } else {
+      setShowLeftSidebar(true);
+      setShowTimelinePanel(true);
+      setMobileNavOpen(false);
+      setOpenTopMenuId(null);
+    }
+  }, [isMobile]);
 
   const handleViewportFormatChange = (format: ViewportFormat) => {
     if (format === viewportFormat) return;
@@ -431,6 +451,15 @@ export default function App() {
     }));
   };
 
+  useEffect(() => {
+    if (demoBootRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('demo') !== '1') return;
+    demoBootRef.current = true;
+    setDemoHint(true);
+    handleLoadModel('miku');
+  }, []);
+
   // Handle dynamically uploaded custom user models (via FileUploader)
   const handleLoadCustomModel = (data: {
     name: string;
@@ -718,6 +747,22 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#121418] font-sans cursor-default overflow-hidden text-zinc-100" id="mmd-workspace-main">
+      {demoHint && (
+        <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-cyan-950/90 border-b border-cyan-500/30 text-xs sm:text-sm text-cyan-100/90 z-50">
+          <p>
+            <span className="font-semibold text-cyan-300">Demo rig loaded.</span>{' '}
+            Drop your <strong className="text-white">PMX</strong> + <strong className="text-white">VMD</strong> on the
+            viewport, or use <strong className="text-white">File → Load Miku</strong>.
+          </p>
+          <button
+            type="button"
+            onClick={() => setDemoHint(false)}
+            className="shrink-0 text-xs font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer px-2 py-1"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {/* 1. Header Navigation Workspace Bar */}
       <TopMenu 
         physicsMode={appState.physicsMode}
@@ -781,23 +826,39 @@ export default function App() {
           const currentlyOn = model.vmdPlaybackEnabled !== false;
           handleSetVmdPlaybackEnabled(id, !currentlyOn);
         }}
+        isMobile={isMobile}
+        mobileNavOpen={mobileNavOpen}
+        onMobileNavOpenChange={setMobileNavOpen}
+        openMenuId={openTopMenuId}
+        onOpenMenuIdChange={setOpenTopMenuId}
       />
 
       {/* 2. Middle section (Sidebar + Viewport) */}
-      <div className="flex-1 flex overflow-hidden relative">
-        
-        {/* Toggle left collapse handle */}
-        <button
-          onClick={() => setShowLeftSidebar(!showLeftSidebar)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 bg-[#1a1d24] border border-[#2c3240] p-1.5 text-zinc-400 hover:text-[#39c5bb] hover:border-[#39c5bb]/40 z-30 transition-all shadow-md cursor-pointer"
-          title={showLeftSidebar ? "Collapse panel" : "Expand panel"}
-        >
-          {showLeftSidebar ? <ChevronLeft className="w-4 h-4 font-bold" /> : <ChevronRight className="w-4 h-4 font-bold" />}
-        </button>
+      <div className="flex-1 flex overflow-hidden relative min-h-0">
+        {isMobile && showLeftSidebar && (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/60 md:hidden cursor-pointer"
+            aria-label="Close panel overlay"
+            onClick={() => setShowLeftSidebar(false)}
+          />
+        )}
 
-        {/* Dynamic Sidebar column */}
+        {!isMobile && (
+          <button
+            type="button"
+            onClick={() => setShowLeftSidebar(!showLeftSidebar)}
+            className="absolute left-0 top-1/2 -translate-y-1/2 bg-[#1a1d24] border border-[#2c3240] p-1.5 text-zinc-400 hover:text-[#39c5bb] hover:border-[#39c5bb]/40 z-30 transition-all shadow-md cursor-pointer"
+            title={showLeftSidebar ? 'Collapse panel' : 'Expand panel'}
+          >
+            {showLeftSidebar ? <ChevronLeft className="w-4 h-4 font-bold" /> : <ChevronRight className="w-4 h-4 font-bold" />}
+          </button>
+        )}
+
         {showLeftSidebar && (
-          <Sidebar 
+          <Sidebar
+            isMobile={isMobile}
+            onClose={() => setShowLeftSidebar(false)}
             appState={appState}
             onSelectModel={(id) => setAppState(prev => ({ ...prev, selectedObjectId: id }))}
             onSelectBone={(id) => setAppState(prev => ({ ...prev, selectedBoneId: id }))}
@@ -900,18 +961,40 @@ export default function App() {
             />
           )}
 
-          {/* Toggle timeline collapse handle */}
-          <button
-            onClick={() => setShowTimelinePanel(!showTimelinePanel)}
-            className="absolute bottom-4 right-4 bg-[#1a1d24] border border-[#2c3240] py-1.5 px-3 text-xs font-bold text-zinc-300 hover:text-[#39c5bb] hover:border-[#39c5bb]/40 active:bg-[#121418] z-20 flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
-          >
-            <Video className="w-3.5 h-3.5" />
-            {showTimelinePanel ? 'Hide Timeline panel' : 'Show Timeline panel'}
-          </button>
+          {/* Desktop: toggle timeline */}
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={() => setShowTimelinePanel(!showTimelinePanel)}
+              className="absolute bottom-4 right-4 bg-[#1a1d24] border border-[#2c3240] py-1.5 px-3 text-xs font-bold text-zinc-300 hover:text-[#39c5bb] hover:border-[#39c5bb]/40 active:bg-[#121418] z-20 flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+            >
+              <Video className="w-3.5 h-3.5" />
+              {showTimelinePanel ? 'Hide Timeline' : 'Show Timeline'}
+            </button>
+          )}
 
         </div>
 
       </div>
+
+      {isMobile && (
+        <MobileStudioBar
+          isPlaying={appState.isPlaying}
+          panelOpen={showLeftSidebar}
+          timelineOpen={showTimelinePanel}
+          onTogglePanel={() => setShowLeftSidebar((v) => !v)}
+          onToggleTimeline={() => setShowTimelinePanel((v) => !v)}
+          onTogglePlay={() => handleSetIsPlaying(!appState.isPlaying)}
+          onOpenMenu={() => {
+            setOpenTopMenuId(null);
+            setMobileNavOpen(true);
+          }}
+          onOpenFx={() => {
+            setMobileNavOpen(false);
+            setOpenTopMenuId((id) => (id === 'fx' ? null : 'fx'));
+          }}
+        />
+      )}
 
     </div>
   );

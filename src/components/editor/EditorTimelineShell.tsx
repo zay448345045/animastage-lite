@@ -38,8 +38,8 @@ export default function EditorTimelineShell(props: EditorTimelineShellProps) {
       : props.activeTrack;
 
   return (
-    <div className="flex flex-col border-t border-zinc-800 bg-[#121418]">
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-zinc-800 bg-[#0e1014]">
+    <div className="flex flex-col border-t border-zinc-800 bg-[#121418] max-md:max-h-[min(58vh,480px)] max-md:min-h-0 max-md:overflow-hidden shrink-0">
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-zinc-800 bg-[#0e1014] shrink-0 overflow-x-auto">
         {(
           [
             ['timeline', 'Timeline', Film],
@@ -61,11 +61,16 @@ export default function EditorTimelineShell(props: EditorTimelineShellProps) {
             {label}
           </button>
         ))}
-        <span className="ml-auto text-[8px] text-zinc-600 font-mono">
+        <span className="ml-auto hidden md:inline text-[8px] text-zinc-600 font-mono shrink-0">
           Ctrl+Z undo · Ctrl+C/V copy · Del delete key
         </span>
       </div>
 
+      <div
+        className={`flex-1 min-h-0 ${
+          tab === 'timeline' ? 'flex flex-col overflow-x-hidden overflow-y-hidden' : 'overflow-y-auto overflow-x-hidden'
+        }`}
+      >
       {tab === 'timeline' && (
         <Timeline
           appState={props.appState}
@@ -102,6 +107,7 @@ export default function EditorTimelineShell(props: EditorTimelineShellProps) {
           onPatchKeyframe={(t, frame, patch) => props.onPatchKeyframe(t, frame, patch)}
         />
       )}
+      </div>
     </div>
   );
 }

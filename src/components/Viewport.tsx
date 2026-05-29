@@ -669,19 +669,19 @@ export default function Viewport({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="absolute top-4 left-4 z-10 pointer-events-none select-none font-sans px-3.5 py-2 md:py-2.5 bg-[#121418]/85 text-zinc-150 border border-zinc-800 rounded-md shadow-lg backdrop-blur-md flex items-center gap-3">
-        <div className="w-2 h-2 bg-[#ff3385] rounded-full animate-pulse shadow-[0_0_8px_#ff3385]" />
-        <div>
-          <span className="text-[9px] uppercase font-mono tracking-widest text-zinc-500 font-extrabold block">
+      <div className="absolute top-2 left-2 md:top-4 md:left-4 z-10 pointer-events-none select-none font-sans px-2 py-1.5 md:px-3.5 md:py-2.5 bg-[#121418]/85 text-zinc-150 border border-zinc-800 rounded-md shadow-lg backdrop-blur-md flex items-center gap-2 md:gap-3 max-w-[calc(100%-5rem)]">
+        <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-[#ff3385] rounded-full animate-pulse shadow-[0_0_8px_#ff3385] shrink-0" />
+        <div className="min-w-0 truncate">
+          <span className="hidden md:block text-[9px] uppercase font-mono tracking-widest text-zinc-500 font-extrabold">
             3D Viewport
           </span>
-          <span className="text-xs text-[#39c5bb] font-bold">
-            {stagingLabel ? `${stagingLabel} Active Staging` : 'Void Scene Platform'}
+          <span className="text-[10px] md:text-xs text-[#39c5bb] font-bold truncate block">
+            {stagingLabel ? `${stagingLabel}` : 'Scene'}
           </span>
         </div>
       </div>
 
-      <div className="absolute top-4 right-4 z-10 font-mono text-[9px] flex items-center gap-2 pointer-events-auto select-none flex-wrap justify-end max-w-[min(100%,420px)]">
+      <div className="absolute top-2 right-2 md:top-4 md:right-4 z-10 font-mono text-[8px] md:text-[9px] flex items-center gap-1 md:gap-2 pointer-events-auto select-none flex-wrap justify-end max-w-[min(100%,calc(100%-6rem))]">
         {onPatchSceneBackground && onClearSceneBackground && (
           <SceneBackgroundPicker
             background={sceneBackground}
@@ -705,43 +705,44 @@ export default function Viewport({
           <button
             type="button"
             onClick={() => onSetCameraMode?.('free')}
-            className={`px-2.5 py-1 flex items-center gap-1 font-bold uppercase tracking-wide transition-colors cursor-pointer ${
+            className={`px-1.5 py-0.5 md:px-2.5 md:py-1 flex items-center gap-0.5 md:gap-1 font-bold uppercase tracking-wide transition-colors cursor-pointer ${
               appState.cameraMode === 'free'
                 ? 'bg-[#39c5bb]/20 text-[#39c5bb]'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
             title="Free orbit camera (Blender-style)"
           >
-            <CameraIcon className="w-3 h-3" />
-            Free
+            <CameraIcon className="w-2.5 h-2.5 md:w-3 md:h-3" />
+            <span className="hidden sm:inline">Free</span>
           </button>
           <button
             type="button"
             onClick={() => onSetCameraMode?.('mmd')}
-            className={`px-2.5 py-1 flex items-center gap-1 font-bold uppercase tracking-wide transition-colors cursor-pointer border-l border-zinc-800 ${
+            className={`px-1.5 py-0.5 md:px-2.5 md:py-1 flex items-center gap-0.5 md:gap-1 font-bold uppercase tracking-wide transition-colors cursor-pointer border-l border-zinc-800 ${
               appState.cameraMode === 'mmd'
                 ? 'bg-[#e879ff]/20 text-[#e879ff]'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
             title="MMD director camera (VMD or keyframes)"
           >
-            <FilmIcon className="w-3 h-3" />
-            MMD
+            <FilmIcon className="w-2.5 h-2.5 md:w-3 md:h-3" />
+            <span className="hidden sm:inline">MMD</span>
           </button>
         </div>
         {appState.isPlaying && (
-          <span className="bg-red-950/80 border border-red-500/50 text-[#ff4444] font-extrabold px-2.5 py-1 uppercase tracking-widest flex items-center gap-1.5 rounded-md backdrop-blur-sm shadow-md">
+          <span className="hidden sm:flex bg-red-950/80 border border-red-500/50 text-[#ff4444] font-extrabold px-2 py-0.5 md:px-2.5 md:py-1 uppercase tracking-widest items-center gap-1.5 rounded-md backdrop-blur-sm shadow-md">
             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
             PLAYING
           </span>
         )}
-        <span className="bg-[#121418]/85 border border-zinc-800 text-zinc-300 px-3 py-1 font-bold rounded-md backdrop-blur-sm shadow-md">
-          Frame: <span className="text-[#39c5bb] font-bold">{appState.currentFrame}</span>
+        <span className="bg-[#121418]/85 border border-zinc-800 text-zinc-300 px-1.5 py-0.5 md:px-3 md:py-1 font-bold rounded-md backdrop-blur-sm shadow-md">
+          <span className="hidden sm:inline">Frame: </span>
+          <span className="text-[#39c5bb] font-bold">{appState.currentFrame}</span>
         </span>
       </div>
 
       {appState.visualFx.bloomEnabled && (
-        <div className="absolute top-16 left-4 z-10 bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-1.5 rounded-md shadow-lg pointer-events-none">
+        <div className="absolute top-16 left-4 z-10 hidden md:block bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-1.5 rounded-md shadow-lg pointer-events-none">
           Bloom FX active
         </div>
       )}
@@ -749,18 +750,18 @@ export default function Viewport({
       {appState.cameraMode === 'mmd' &&
         !appState.hasCameraVmd &&
         appState.cameraKeyframes.length === 0 && (
-          <div className="absolute top-16 right-4 z-10 max-w-xs bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
+          <div className="absolute top-16 right-4 z-10 hidden md:block max-w-xs bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
             MMD camera mode: add camera keyframes or load a camera-only .vmd. Switch to{' '}
             <span className="text-white">Free</span> to orbit the scene.
           </div>
         )}
 
       {activeModel && appState.selectedBoneId && !captureChrome && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-[#121418]/90 border border-zinc-800 rounded-lg p-1 shadow-lg backdrop-blur-md pointer-events-auto">
+        <div className="absolute top-20 max-md:top-auto max-md:bottom-[calc(3.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 md:gap-1 bg-[#121418]/90 border border-zinc-800 rounded-lg p-0.5 md:p-1 shadow-lg backdrop-blur-md pointer-events-auto">
           <button
             type="button"
             onClick={() => setTransformMode('translate')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 md:gap-1.5 md:px-3 md:py-1.5 text-[9px] md:text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
               transformMode === 'translate'
                 ? 'bg-[#39c5bb]/20 text-[#39c5bb] border border-[#39c5bb]/40'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
@@ -772,7 +773,7 @@ export default function Viewport({
           <button
             type="button"
             onClick={() => setTransformMode('rotate')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 md:gap-1.5 md:px-3 md:py-1.5 text-[9px] md:text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
               transformMode === 'rotate'
                 ? 'bg-[#39c5bb]/20 text-[#39c5bb] border border-[#39c5bb]/40'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
@@ -785,7 +786,7 @@ export default function Viewport({
       )}
 
       {activeModel && !appState.selectedBoneId && !captureChrome && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 bg-[#121418]/90 border border-[#9d27ff]/40 rounded-lg px-4 py-2 shadow-lg backdrop-blur-md pointer-events-none">
+        <div className="absolute top-20 max-md:top-auto max-md:bottom-[calc(3.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-20 hidden sm:block max-w-[90vw] bg-[#121418]/90 border border-[#9d27ff]/40 rounded-lg px-3 py-1.5 md:px-4 md:py-2 shadow-lg backdrop-blur-md pointer-events-none">
           <span className="text-[10px] font-bold uppercase text-[#e879ff] tracking-wider">
             Root Marker — drag purple ring or axis arrows to move model
           </span>

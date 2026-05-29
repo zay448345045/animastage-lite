@@ -55,6 +55,8 @@ interface SidebarProps {
   onToggleGroupSolo?: (groupId: string) => void;
   onToggleGroupMute?: (groupId: string) => void;
   maxFrames?: number;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
 
 export default function Sidebar({
@@ -86,6 +88,8 @@ export default function Sidebar({
   onToggleGroupSolo,
   onToggleGroupMute,
   maxFrames = 120,
+  isMobile = false,
+  onClose,
 }: SidebarProps) {
   const lite = appState.mmdLite;
   const ammoBroken = isAmmoPhysicsBroken();
@@ -99,9 +103,24 @@ export default function Sidebar({
     selectedModel?.hasVmdAnimation && selectedModel.vmdPlaybackEnabled !== false;
 
   return (
-    <aside className="w-80 bg-[#16181d] border-r border-[#22252c] flex flex-col h-full overflow-hidden select-none font-sans" id="mmd-sidebar">
+    <aside
+      className={`bg-[#16181d] border-r border-[#22252c] flex flex-col h-full overflow-hidden select-none font-sans shrink-0 ${
+        isMobile
+          ? 'fixed inset-y-0 left-0 z-50 w-[min(100vw,20rem)] max-w-full shadow-2xl pt-[env(safe-area-inset-top)]'
+          : 'relative w-80'
+      }`}
+      id="mmd-sidebar"
+    >
       {/* OS Tab Selectors */}
-      <div className="flex bg-[#121418] p-1.5 gap-1 border-b border-[#22252c]">
+      {isMobile && onClose && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[#22252c] md:hidden">
+          <span className="text-xs font-bold text-zinc-300 uppercase">Scene panel</span>
+          <button type="button" onClick={onClose} className="text-zinc-400 p-2 cursor-pointer" aria-label="Close panel">
+            ×
+          </button>
+        </div>
+      )}
+      <div className="flex bg-[#121418] p-1 gap-0.5 sm:p-1.5 sm:gap-1 border-b border-[#22252c] overflow-x-auto">
         <button
           onClick={() => setActiveTab('hierarchy')}
           className={`flex-1 py-1.5 text-xs font-bold rounded transition-all cursor-pointer flex items-center justify-center gap-1 ${

@@ -22,3 +22,14 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #39c5bb;
 }
+
+html,
+body,
+#root {
+  min-height: 100dvh;
+}
+
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}

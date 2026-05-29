@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   FolderOpen, 
   Settings, 
@@ -15,6 +15,7 @@ import {
   Cpu,
   Music2,
   Film,
+  X,
 } from 'lucide-react';
 import {
   CharacterQuality,
@@ -73,6 +74,11 @@ interface TopMenuProps {
   onClearTrack?: () => void;
   onTimeStretch125?: () => void;
   onTimeStretch080?: () => void;
+  isMobile?: boolean;
+  mobileNavOpen?: boolean;
+  onMobileNavOpenChange?: (open: boolean) => void;
+  openMenuId?: string | null;
+  onOpenMenuIdChange?: (id: string | null) => void;
 }
 
 export default function TopMenu({
@@ -119,16 +125,37 @@ export default function TopMenu({
   onClearTrack,
   onTimeStretch125,
   onTimeStretch080,
+  isMobile = false,
+  mobileNavOpen = false,
+  onMobileNavOpenChange,
+  openMenuId = null,
+  onOpenMenuIdChange,
 }: TopMenuProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-  const toggleMenu = (menu: string) => {
-    setActiveMenu(activeMenu === menu ? null : menu);
+  const closeMenu = () => {
+    setActiveMenu(null);
+    onOpenMenuIdChange?.(null);
   };
+
+  useEffect(() => {
+    if (openMenuId === 'fx') setActiveMenu('fx');
+    if (openMenuId === null) {
+      setActiveMenu((m) => (m === 'fx' ? null : m));
+    }
+  }, [openMenuId]);
+
+  const toggleMenu = (menu: string) => {
+    const next = activeMenu === menu ? null : menu;
+    setActiveMenu(next);
+    onOpenMenuIdChange?.(next);
+  };
+
+  const closeMobileNav = () => onMobileNavOpenChange?.(false);
 
   const handleMenuClick = (action: () => void) => {
     action();
-    setActiveMenu(null);
+    closeMenu();
   };
 
   const menuItems = [
@@ -321,24 +348,84 @@ export default function TopMenu({
     },
   ];
 
+  const renderMenuPanel = (menu: (typeof menuItems)[number]) => {
+    if ('panel' in menu && menu.panel) {
+      return (
+        <div className="mt-2 w-full max-h-[min(70vh,520px)] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] rounded-md shadow-lg">
+          <FxSettingsPanel
+            visualFx={visualFx}
+            mmdLite={mmdLite}
+            rtxModeEnabled={rtxModeEnabled}
+            rtxSettings={rtxSettings}
+            characterQuality={characterQuality}
+            viewportFormat={viewportFormat}
+            onSetVisualFx={onSetVisualFx}
+            onPatchMmdLite={onPatchMmdLite}
+            onSetRtxModeEnabled={onSetRtxModeEnabled}
+            onPatchRtxSettings={onPatchRtxSettings}
+            onCharacterQualityChange={onCharacterQualityChange}
+            captureCamera={captureCamera}
+            onFlyToBookmark={onFlyToBookmark}
+            onRestartPhysics={onRestartPhysics}
+            videoRecordBusy={videoRecordBusy}
+            videoRecordMode={videoRecordMode}
+            onRenderMp4={onRenderMp4}
+            onLiveRecord={onLiveRecord}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="mt-2 w-full max-h-[min(60vh,480px)] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] rounded-md p-1.5">
+        {menu.items!.map((item, index) => {
+          if ('type' in item && item.type === 'separator') {
+            return <div key={index} className="h-px bg-[#2a2e38] my-1" />;
+          }
+          if ('type' in item && item.type === 'header') {
+            const headerItem = item as { label: string };
+            return (
+              <div
+                key={index}
+                className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase text-[#e879ff] tracking-wide"
+              >
+                {headerItem.label}
+              </div>
+            );
+          }
+          const regularItem = item as { label: string; icon: React.ReactNode; action: () => void };
+          return (
+            <button
+              key={index}
+              onClick={() => handleMenuClick(regularItem.action)}
+              className="w-full flex items-center gap-2 px-3 py-3 text-sm text-zinc-300 hover:text-white hover:bg-[#20242e] text-left font-semibold cursor-pointer rounded-sm"
+            >
+              {regularItem.icon}
+              <span>{regularItem.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <header className="h-11 bg-[#16181d] border-b border-[#22252c] flex items-center justify-between px-4 select-none text-zinc-100 font-sans shadow-md" id="mmd-top-menu">
+    <header className="h-11 md:h-11 min-h-[44px] bg-[#16181d] border-b border-[#22252c] flex items-center justify-between px-3 md:px-4 select-none text-zinc-100 font-sans shadow-md shrink-0 pt-[env(safe-area-inset-top)]" id="mmd-top-menu">
       {/* Brand Logo and Menu Column */}
-      <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-2">
-          <div className="bg-teal-950/85 p-1.5 border border-teal-500/35 rounded shadow-sm">
+      <div className="flex items-center space-x-3 md:space-x-6 min-w-0">
+        <div className="flex items-center space-x-2 min-w-0">
+          <div className="bg-teal-950/85 p-1.5 border border-teal-500/35 rounded shadow-sm shrink-0">
             <Video className="w-3.5 h-3.5 text-[#39c5bb]" />
           </div>
-          <span className="font-sans font-extrabold text-xs tracking-wider text-zinc-150 flex items-center gap-1.5 uppercase">
-            AnimaStage <span className="text-[#39c5bb]">Lite</span>{' '}
-            <span className="text-[9px] bg-[#1a1d24] text-zinc-500 px-1.5 py-0.5 rounded font-mono font-medium border border-[#2c3240]">
-              WebMMD 1.0
+          <span className="font-sans font-extrabold text-[10px] md:text-xs tracking-wider text-zinc-150 flex items-center gap-1 uppercase truncate">
+            AnimaStage <span className="text-[#39c5bb]">Lite</span>
+            <span className="hidden sm:inline text-[9px] bg-[#1a1d24] text-zinc-500 px-1.5 py-0.5 rounded font-mono font-medium border border-[#2c3240] ml-1">
+              WebMMD
             </span>
           </span>
         </div>
  
-        {/* Dropdowns */}
-        <div className="flex items-center space-x-1">
+        {/* Desktop dropdowns */}
+        <div className="hidden md:flex items-center space-x-1">
           {menuItems.map((menu) => (
             <div key={menu.id} className="relative">
               <button
@@ -433,10 +520,71 @@ export default function TopMenu({
           ))}
         </div>
       </div>
+
+      {/* Mobile: active menu sheet (FX or picked section) */}
+      {isMobile && activeMenu && !mobileNavOpen && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/60 md:hidden" onClick={closeMenu} />
+          <div className="fixed inset-x-0 top-11 bottom-[calc(52px+env(safe-area-inset-bottom))] z-[61] md:hidden overflow-y-auto p-3 bg-[#121418]/98">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-bold uppercase text-[#39c5bb]">
+                {menuItems.find((m) => m.id === activeMenu)?.label}
+              </span>
+              <button
+                type="button"
+                onClick={closeMenu}
+                className="p-2 text-zinc-400 cursor-pointer"
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {menuItems
+              .filter((m) => m.id === activeMenu)
+              .map((m) => (
+                <div key={m.id}>{renderMenuPanel(m)}</div>
+              ))}
+          </div>
+        </>
+      )}
+
+      {/* Mobile: main nav grid */}
+      {isMobile && mobileNavOpen && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/70 md:hidden" onClick={closeMobileNav} />
+          <div className="fixed inset-x-0 top-11 bottom-[calc(52px+env(safe-area-inset-bottom))] z-[61] md:hidden overflow-y-auto p-4 bg-[#121418]">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-sm font-bold text-zinc-200">Studio menu</span>
+              <button type="button" onClick={closeMobileNav} className="p-2 cursor-pointer" aria-label="Close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {menuItems.map((menu) => (
+                <button
+                  key={menu.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveMenu(menu.id);
+                    closeMobileNav();
+                  }}
+                  className={`py-4 px-3 rounded-lg border text-sm font-bold cursor-pointer ${
+                    menu.id === 'fx' && rtxModeEnabled
+                      ? 'border-[#76b900]/40 bg-[#1a2e1a] text-[#76b900]'
+                      : 'border-[#2c3240] bg-[#1a1d24] text-zinc-200 active:bg-[#252a35]'
+                  }`}
+                >
+                  {menu.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
  
       {/* Right Tools Info / Status Bar */}
-      <div className="flex items-center space-x-4">
-        <div className="hidden md:flex items-center space-x-2.5 text-[11px] font-mono text-zinc-400">
+      <div className="flex items-center space-x-2 md:space-x-4 shrink-0">
+        <div className="hidden lg:flex items-center space-x-2.5 text-[11px] font-mono text-zinc-400">
           <span className="flex items-center gap-1.5 font-bold text-[#39c5bb]">
             <Cpu className="w-3.5 h-3.5 text-[#39c5bb]" /> WebGL Engine
           </span>
