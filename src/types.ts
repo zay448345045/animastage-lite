@@ -1,4 +1,5 @@
 import type { RtxSettings } from './utils/rtxSettings';
+import type { PoseSnapshotV1 } from './pose/poseTypes';
 
 export type PhysicsMode = 'anytime' | 'playtime' | 'off';
 
@@ -141,6 +142,11 @@ export interface MMDModel {
   boneGroups?: BoneGroupDef[];
   /** Editor document changed since last export/save. */
   clipDirty?: boolean;
+  /** Pose library preview — held while paused (does not override VMD/timeline during play). */
+  poseHold?: PoseSnapshotV1 | null;
+  activePoseId?: string | null;
+  /** PMX/PMD validation report (textures, performance). */
+  modelAnalysis?: import('./analyzer/types').ModelAnalysisReport | null;
 }
 
 export interface SceneObject {

@@ -1,0 +1,96 @@
+import type { PoseLibraryEntry } from './poseTypes';
+
+const D = (x: number, y: number, z: number) => ({ x, y, z });
+
+export const PRESET_POSES: PoseLibraryEntry[] = [
+  {
+    version: 1,
+    id: 'preset_idle',
+    name: 'Idle',
+    thumbnail: '🧍',
+    morphs: { eyes: 0, mouth: 0.12, brow: 0 },
+    bones: {
+      head: D(0, 0, 0),
+      neck: D(0, 0, 0),
+      spine: D(0, 0, 0),
+      waist: D(0, 0, 0),
+      arm_L: D(0, 0, -12),
+      arm_R: D(0, 0, 12),
+    },
+  },
+  {
+    version: 1,
+    id: 'preset_tpose',
+    name: 'T-Pose',
+    thumbnail: '✋',
+    morphs: { eyes: 0, mouth: 0.1, brow: 0 },
+    bones: {
+      head: D(0, 0, 0),
+      neck: D(0, 0, 0),
+      spine: D(0, 0, 0),
+      waist: D(0, 0, 0),
+      arm_L: D(0, 0, -78),
+      arm_R: D(0, 0, 78),
+    },
+  },
+  {
+    version: 1,
+    id: 'preset_dance_start',
+    name: 'Dance Start',
+    thumbnail: '💃',
+    morphs: { eyes: 0, mouth: 0.35, brow: 0 },
+    bones: {
+      head: D(-4, 8, 0),
+      neck: D(0, 5, 0),
+      spine: D(0, 12, 4),
+      waist: D(0, -8, 0),
+      arm_L: D(-15, 0, -42),
+      arm_R: D(20, 0, 55),
+    },
+  },
+  {
+    version: 1,
+    id: 'preset_wave',
+    name: 'Wave',
+    thumbnail: '👋',
+    morphs: { eyes: 0.15, mouth: 0.55, brow: 0 },
+    bones: {
+      head: D(-2, 10, 0),
+      neck: D(0, 6, 0),
+      spine: D(0, 5, 0),
+      waist: D(0, 4, 0),
+      arm_L: D(0, 0, -18),
+      arm_R: D(-25, 15, 72),
+    },
+  },
+  {
+    version: 1,
+    id: 'preset_bow',
+    name: 'Bow',
+    thumbnail: '🙇',
+    morphs: { eyes: 0.35, mouth: 0.08, brow: 0.12 },
+    bones: {
+      head: D(18, 0, 0),
+      neck: D(12, 0, 0),
+      spine: D(8, 0, 6),
+      waist: D(0, -6, 0),
+      arm_L: D(0, 0, -8),
+      arm_R: D(0, 0, 8),
+    },
+  },
+  {
+    version: 1,
+    id: 'preset_thinking',
+    name: 'Thinking',
+    thumbnail: '🤔',
+    morphs: { eyes: 0.2, mouth: 0.05, brow: 0.35 },
+    bones: {
+      head: D(5, -12, 8),
+      neck: D(0, -5, 0),
+      spine: D(0, 8, 0),
+      waist: D(0, 0, 0),
+      arm_L: D(0, 0, -20),
+      arm_R: D(-35, 20, 48),
+    },
+  },
+];

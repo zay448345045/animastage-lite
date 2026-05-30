@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BoneState, MorphState, TimelineKeyframe, TimelineTrackId } from '../types';
-import { bezierLerp } from '../editor/clipOperations';
+import { evaluateSegment } from '../editor/curveMath';
 
 export const TIMELINE_TRACK_IDS = [
   'morph_eyes',
@@ -219,16 +219,7 @@ export function lerpTrackValue(
   const range = next.frame - prev.frame;
   if (range === 0) return prev.value;
   const t = (frame - prev.frame) / range;
-  if (prev.interpolation === 'bezier' || next.interpolation === 'bezier') {
-    return bezierLerp(
-      prev.value,
-      next.value,
-      t,
-      prev.easeOut ?? 0.33,
-      next.easeIn ?? 0.33
-    );
-  }
-  return prev.value + (next.value - prev.value) * t;
+  return evaluateSegment(prev, next, t);
 }
 
 export { evaluateTimelineWithLayers } from '../editor/animationLayers';

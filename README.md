@@ -44,17 +44,63 @@ We ship **two editions** for different jobs:
 | **Stack** | React 19 · Vite · R3F · TypeScript | WebGL EffectComposer pipeline |
 | **Renderer** | WebGL 2.0, DPR 1× in 9:16 Lite | Full post-FX stack (SSAO, DOF, volumetrics, bloom) |
 | **Physics** | Bullet WASM, presets | Bullet WASM, deep manual tuning |
-| **Timeline** | VMD dopesheet, curves, VMD export | Dual timeline (VMD + cinematic camera) |
+| **Timeline** | VMD dopesheet, **Bézier curves**, VMD export | Dual timeline (VMD + cinematic camera) |
 | **Characters** | Single scene focus | Multi-character, independent VMD per char |
 | **Bone editor** | Root / bone gizmos, morph tracks | Full G/R/S bone editor in viewport |
 | **Camera** | Bookmarks, 9:16, letterbox | Spline path, keyframes, track lock |
 | **Export** | WebCodecs MP4 HQ + Live | WebCodecs + frame-by-frame HQ render |
-| **Extra (Lite app)** | Mocap, AI keys, collab, anim layers | Scene editor, session JSON, weather presets |
+| **Extra (Lite app)** | **Demo Gallery**, **Pose Library**, **Model Analyzer**, mocap, AI keys, collab, anim layers | Scene editor, session JSON, weather presets |
 | **Target** | Creators, low-spec machines | Studios, production teams |
 
 > **Note:** In the Lite app, **Sidebar → Pro** means *advanced Lite modules* (mocap, AI, collab, layers) — not the separate **AnimaStage Pro** product.
 
 **Lite idea:** ~80% visual impact at ~40% GPU load vs heavy desktop pipelines — ideal when stability and vertical export matter most.
+
+---
+
+## 🆕 Recent updates (changelog)
+
+Summary of what was **added** and **updated** in this repository (editor, landing, SEO).
+
+### Added
+
+| Feature | Description | Where in app |
+|---------|-------------|--------------|
+| **Demo Gallery** | One-click demo scenes (Dance / VTuber / Cinematic). Motion plays in ~2s without uploading files. | Sidebar → **Scene** · `/app?demo=party-dance` · `/app?demo=gallery` |
+| **Pose Library** | Preset poses + capture from model + import/export JSON. Applies on pause (does not override VMD during play). | Sidebar → **Control** |
+| **Model Analyzer** | Auto-check PMX after load: textures, bone/morph/physics counts, performance warnings. **Rescan** button. | Sidebar → **Edit** |
+| **Curve Editor** | Bézier curve editing for timeline tracks; shared math with playback (`curveMath.ts`). | Timeline panel → **Curves** tab |
+| **Landing (SaaS-style)** | Conversion-focused homepage: hero, instant demo grid, user flow, FAQ, JSON-LD. | `/` |
+| **SEO / deploy** | IndexNow key, `sitemap.xml`, `vercel.json` SPA rewrites, static H1 in `index.html` |
+| **Docs** | `docs/DEMO_GALLERY.md`, `public/demos/` (thumbnails, example manifest) |
+
+### Updated
+
+| Area | Change |
+|------|--------|
+| **Performance** | PMX metadata fires once per mesh; analyzer debounced + PMX buffer cache; collab sync no longer depends on full `models` array (fixes console spam / update loops). |
+| **Landing CTAs** | Primary **Try Demo — Free** · Secondary **Upload Your Model** · conversion bridge “Your turn — upload PMX/VMD”. |
+| **Demo boot** | URL params: `?demo=<id>`, `?demo=gallery`, `?demo=1` → featured scene. |
+| **React** | Hooks order fix in `App.tsx` (collab effects after `useCallback`s). |
+
+### New / notable paths
+
+```
+src/demos/                    # Demo catalog, instant loader, pack manifest loader
+src/components/gallery/       # DemoGalleryPanel, DemoGalleryOverlay
+src/pose/                     # Pose types, presets, apply, localStorage
+src/analyzer/                 # PMX parse, validate, analyzeModel
+src/editor/curveMath.ts       # Shared Bézier evaluation for timeline + UI
+src/pages/landing/            # Hero mockup, flow diagram, conversion bridge
+public/demos/thumbs/          # Demo preview SVGs
+scripts/gen-demo-thumbs.mjs   # Regenerate demo thumbnails
+scripts/submit-indexnow.ps1   # npm run indexnow:submit
+```
+
+### Not changed (by design)
+
+- Bullet / Jolt physics pipeline, `mmdFrameLoop`, VMD playback priority  
+- Core viewport rendering and MP4 export pipeline  
 
 ---
 
@@ -89,7 +135,15 @@ We ship **two editions** for different jobs:
 - Style presets · weather · bloom · DOF · vignette · HDR IBL
 
 ### Animation editor
-- **Dopesheet** & **Curves** · **VMD export** · undo/redo · mirror / stretch
+- **Dopesheet** & **Curves** (Bézier handles, draggable keys) · **VMD export** · undo/redo · mirror / stretch
+
+### Editor tools (Sidebar)
+| Module | Tab | Purpose |
+|--------|-----|---------|
+| **Demo Gallery** | Scene | Instant demo scenes — dance, VTuber, cinematic |
+| **Pose Library** | Control | Presets, capture pose, JSON import/export |
+| **Model Analyzer** | Edit | Texture/performance report after PMX load |
+| **Bone / Materials** | Edit | PMX hierarchy, material highlight |
 
 ### Sidebar → Pro (Lite advanced)
 | Module | Purpose |
@@ -131,8 +185,14 @@ npm run dev
 
 | URL | Page |
 |-----|------|
-| `http://localhost:3000/` | Landing |
+| `http://localhost:3000/` | Landing (demo grid, conversion CTAs) |
 | `http://localhost:3000/app` | Studio |
+| `http://localhost:3000/app?demo=party-dance` | Studio — featured demo (auto-play) |
+| `http://localhost:3000/app?demo=gallery` | Studio — full demo gallery overlay |
+
+```bash
+npm run indexnow:submit   # optional — ping search engines (IndexNow)
+```
 
 ### Android app (download)
 
@@ -151,7 +211,9 @@ npm run preview
 npm run lint
 ```
 
-Drag PMX + VMD into the viewport or use **File**.
+**Try a demo first:** open `/app?demo=party-dance` or pick a scene on the landing page.
+
+**Your files:** drag PMX + VMD onto the viewport or use **File → Load**.
 
 ### Configuration
 
@@ -172,11 +234,14 @@ Get a Gemini key: [Google AI Studio](https://aistudio.google.com/apikey). Restar
 
 | Task | Where |
 |------|--------|
+| **Instant demo** | Landing → demo tile · **Scene → Demo Gallery** · `/app?demo=…` |
 | Model / VMD | **File** or drag-drop |
+| Model health check | **Sidebar → Edit → Model Analyzer** |
+| Poses (paused) | **Sidebar → Control → Pose Library** |
 | Light, style, weather | **FX** |
 | MP4 / Live | **FX → Video** |
 | Physics | **File** / MMD Lite panel |
-| Timeline, dopesheet, curves | Bottom panel |
+| Timeline, dopesheet, curves | Bottom panel (**Curves** tab) |
 | Mocap, AI, layers, collab | **Sidebar → Pro** |
 | 16:9 ↔ 9:16 | Viewport format toggle |
 
@@ -186,15 +251,24 @@ Get a Gemini key: [Google AI Studio](https://aistudio.google.com/apikey). Restar
 
 | Path | Role |
 |------|------|
-| `src/App.tsx` | App state, collab, recording |
-| `src/components/MMDModelWrapper.tsx` | PMX, VMD, physics, layers |
-| `src/pages/LandingPage.tsx` | Landing at `/` |
-| `src/editor/` | Dopesheet, curves, VMD export |
+| `src/App.tsx` | App state, demo load, collab, recording, pose/analyzer wiring |
+| `src/RootRouter.tsx` | `/` landing vs `/app` studio |
+| `src/components/MMDModelWrapper.tsx` | PMX, VMD, physics, layers, pose hold |
+| `src/pages/LandingPage.tsx` | Marketing landing (conversion-optimized) |
+| `src/pages/landing/` | Hero mockup, demo grid, conversion bridge, flow diagram |
+| `src/demos/` | Demo catalog, `loadDemoPack`, instant scene apply |
+| `src/components/gallery/` | Demo gallery UI (panel + overlay) |
+| `src/pose/` | Pose library presets, storage, apply to mesh |
+| `src/analyzer/` | PMX analysis and validation reports |
+| `src/editor/` | Dopesheet, `curveMath`, VMD export |
+| `src/hooks/useEditorDocument.ts` | Undo, PMX metadata, analyzer debounce |
 | `src/video/` | MP4 HQ / Live, clean capture |
 | `src/mocap/` · `src/ai/` · `src/collab/` | Optional Pro panel modules |
 | `src/utils/mmdCharacterPhysics.ts` | Bullet / MMD physics |
+| `public/demos/` | Demo thumbnails + optional PMX packs |
+| `public/vercel.json` | SPA rewrites for `/app`, sitemap |
 
-Docs: [docs/ANIMASTAGE_LITE.md](docs/ANIMASTAGE_LITE.md) · Security: [SECURITY.md](SECURITY.md)
+Docs: [docs/ANIMASTAGE_LITE.md](docs/ANIMASTAGE_LITE.md) · [docs/DEMO_GALLERY.md](docs/DEMO_GALLERY.md) · Security: [SECURITY.md](SECURITY.md)
 
 ---
 

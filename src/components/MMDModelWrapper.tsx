@@ -19,6 +19,11 @@ import {
   snapshotMmdRestPose,
   type TimelineLiveValues,
 } from './TimelineLogic';
+import {
+  applyPoseSnapshotToMesh,
+  collectDynamicBoneNames,
+} from '../pose/poseApply';
+import type { PoseSnapshotV1 } from '../pose/poseTypes';
 import type { CharacterQuality, MmdLiteConfig, TimelineKeyframe, ViewportFormat } from '../types';
 import {
   applyModelOpacity,
@@ -608,11 +613,14 @@ interface MMDModelWrapperProps {
   transformMode?: 'translate' | 'rotate';
   rootManipulatorActive?: boolean;
   onModelReady?: (api: MMDModelApi | null) => void;
-  onPmxMetadata?: (meta: {
-    bones: PmxBoneInfo[];
-    morphs: PmxMorphInfo[];
-    materials: PmxMaterialInfo[];
-  }) => void;
+  onPmxMetadata?: (
+    meta: {
+      bones: PmxBoneInfo[];
+      morphs: PmxMorphInfo[];
+      materials: PmxMaterialInfo[];
+    },
+    mesh: THREE.SkinnedMesh
+  ) => void;
   highlightMaterialName?: string | null;
   onSelectBone?: (boneId: string) => void;
   onSelectRoot?: () => void;
@@ -627,6 +635,8 @@ interface MMDModelWrapperProps {
   materialSmoothing?: number;
   /** Hide root marker / gizmos for clean video capture. */
   hideStagingChrome?: boolean;
+  /** Pose library hold — applied when paused (before physics). */
+  poseHold?: PoseSnapshotV1 | null;
 }
 
 function applyCharacterMaterialPipeline(
@@ -689,6 +699,7 @@ export default function MMDModelWrapper({
   materialDetailing = true,
   materialSmoothing = 0.55,
   hideStagingChrome = false,
+  poseHold = null,
 }: MMDModelWrapperProps) {
   const { gl } = useThree();
   const [mesh, setMesh] = useState<THREE.SkinnedMesh | null>(null);
@@ -729,6 +740,7 @@ export default function MMDModelWrapper({
   const initialVmdAppliedRef = useRef(false);
   const wasPlayingRef = useRef(false);
   const ammoReadyRef = useRef(isAmmoInitialized());
+  const poseHoldRef = useRef(poseHold);
   const timelineKeyframesRef = useRef(timelineKeyframes);
   const animLayersRef = useRef(animLayers);
   const boneGroupsRef = useRef(boneGroups);
@@ -825,6 +837,7 @@ export default function MMDModelWrapper({
   timelineKeyframesRef.current = timelineKeyframes;
   animLayersRef.current = animLayers;
   boneGroupsRef.current = boneGroups;
+  poseHoldRef.current = poseHold;
 
   const evaluatePoseAtFrame = useCallback(
     (frame: number) => {
@@ -996,16 +1009,31 @@ export default function MMDModelWrapper({
     };
   }, [syncPhysicsFromRoot]);
 
+  const onPmxMetadataRef = useRef(onPmxMetadata);
+  onPmxMetadataRef.current = onPmxMetadata;
+  const pmxMetadataMeshIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     onModelReady?.(mesh ? buildMeshApi() : useProcedural ? proceduralApiRef.current : null);
-    if (mesh && onPmxMetadata) {
-      onPmxMetadata({
+  }, [mesh, useProcedural, buildMeshApi, onModelReady]);
+
+  useEffect(() => {
+    if (!mesh) {
+      pmxMetadataMeshIdRef.current = null;
+      return;
+    }
+    if (pmxMetadataMeshIdRef.current === mesh.uuid) return;
+    pmxMetadataMeshIdRef.current = mesh.uuid;
+
+    onPmxMetadataRef.current?.(
+      {
         bones: extractPmxBones(mesh),
         morphs: extractPmxMorphs(mesh),
         materials: extractPmxMaterials(mesh),
-      });
-    }
-  }, [mesh, useProcedural, buildMeshApi, onModelReady, onPmxMetadata]);
+      },
+      mesh
+    );
+  }, [mesh]);
 
   useEffect(() => {
     buildMeshApi()?.setMaterialHighlight(highlightMaterialName ?? null);
@@ -1524,6 +1552,27 @@ export default function MMDModelWrapper({
     if (useTimelinePose) {
       const evaluated = evaluatePoseAtFrame(activeFrame);
       applyTimelineToSkinnedMesh(currentMesh, evaluated);
+      syncSkeletonBeforePhysics(currentMesh);
+    } else if (!useVmdAnimation && !playing && poseHoldRef.current) {
+      const physWithDynamics = meshState?.physics as
+        | { getDynamicBoneNames?: () => ReadonlySet<string> }
+        | undefined;
+      const skipBones = physWithDynamics?.getDynamicBoneNames
+        ? collectDynamicBoneNames(currentMesh, () =>
+            new Set(physWithDynamics.getDynamicBoneNames!())
+          )
+        : collectDynamicBoneNames(currentMesh);
+      const holdPose: PoseSnapshotV1 = {
+        ...poseHoldRef.current,
+        morphs: {
+          eyes: morphsRef.current.eyesBlink,
+          mouth: morphsRef.current.mouthOpen,
+          brow: morphsRef.current.browSad,
+        },
+      };
+      applyPoseSnapshotToMesh(currentMesh, holdPose, {
+        skipBoneNames: skipBones,
+      });
       syncSkeletonBeforePhysics(currentMesh);
     } else if (!useVmdAnimation && !playing) {
       // No VMD, no timeline, not playing → restore rest pose so T-pose ghost disappears.

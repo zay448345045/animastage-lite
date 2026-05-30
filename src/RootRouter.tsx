@@ -39,7 +39,9 @@ export default function RootRouter() {
   return (
     <LandingPage
       onStart={() => navigateTo('/app')}
-      onStartDemo={() => navigateTo('/app?demo=1')}
+      onStartDemo={() => navigateTo('/app?demo=party-dance')}
+      onStartDemoGallery={() => navigateTo('/app?demo=gallery')}
+      onStartDemoId={(id) => navigateTo(`/app?demo=${encodeURIComponent(id)}`)}
     />
   );
 }

@@ -16,7 +16,10 @@ import {
   Sparkles,
   CheckCircle2,
   Film,
+  LayoutGrid,
 } from 'lucide-react';
+import DemoGalleryPanel from './gallery/DemoGalleryPanel';
+import { FEATURED_DEMO_ID } from '../demos/demoCatalog';
 import { AppState, MMDModel, MmdLiteConfig, PhysicsMode } from '../types';
 import { isAmmoPhysicsBroken } from '../utils/mmdCharacterPhysics';
 import FileUploader from './FileUploader';
@@ -24,6 +27,9 @@ import type { ProcessedMMDFiles } from '../utils/mmdFiles';
 import BoneHierarchyPanel from './editor/BoneHierarchyPanel';
 import MaterialsPanel from './editor/MaterialsPanel';
 import AdvancedStudioPanel from './editor/AdvancedStudioPanel';
+import PoseLibraryPanel from './editor/PoseLibraryPanel';
+import ModelAnalyzerPanel from './editor/ModelAnalyzerPanel';
+import type { PoseSnapshotV1 } from '../pose/poseTypes';
 import type { AnimationLayerDef, TimelineKeyframe } from '../types';
 
 interface SidebarProps {
@@ -57,6 +63,15 @@ interface SidebarProps {
   maxFrames?: number;
   isMobile?: boolean;
   onClose?: () => void;
+  onApplyPose?: (pose: PoseSnapshotV1) => void;
+  onCapturePose?: () => void;
+  onClearPoseHold?: () => void;
+  onReanalyzeModel?: () => void;
+  analyzingModel?: boolean;
+  onLoadDemo?: (demoId: string) => void;
+  demoLoadingId?: string | null;
+  activeDemoId?: string | null;
+  onOpenDemoGallery?: () => void;
 }
 
 export default function Sidebar({
@@ -90,6 +105,15 @@ export default function Sidebar({
   maxFrames = 120,
   isMobile = false,
   onClose,
+  onApplyPose,
+  onCapturePose,
+  onClearPoseHold,
+  onReanalyzeModel,
+  analyzingModel = false,
+  onLoadDemo,
+  demoLoadingId = null,
+  activeDemoId = null,
+  onOpenDemoGallery,
 }: SidebarProps) {
   const lite = appState.mmdLite;
   const ammoBroken = isAmmoPhysicsBroken();
@@ -184,6 +208,26 @@ export default function Sidebar({
         {/* TAB 1: HIERARCHY / OBJECTS TREE (Modern Graph Explorer List) */}
         {activeTab === 'hierarchy' && (
           <div className="space-y-4">
+            {onLoadDemo && (
+              <div className="rounded-lg border border-[#22252c] bg-[#121418] p-2.5">
+                <DemoGalleryPanel
+                  onLoadDemo={onLoadDemo}
+                  loadingDemoId={demoLoadingId}
+                  activeDemoId={activeDemoId}
+                  compact
+                />
+                {onOpenDemoGallery && (
+                  <button
+                    type="button"
+                    onClick={onOpenDemoGallery}
+                    className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-bold text-zinc-400 hover:text-[#39c5bb] cursor-pointer"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    Full-screen gallery
+                  </button>
+                )}
+              </div>
+            )}
             <div>
               <div className="bg-[#121418] text-zinc-300 font-bold text-[10px] uppercase px-3 py-1.5 flex items-center justify-between border-t border-l border-r border-[#22252c]">
                 <span>Loaded Scene Objects ({appState.objects.length + appState.models.length})</span>
@@ -231,14 +275,25 @@ export default function Sidebar({
 
                 {/* MMD Models */}
                 {appState.models.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center bg-[#1a1d24] border border-[#22252c] rounded">
-                    <p className="text-[11px] text-zinc-400 font-bold mb-2">No MMD Models Loaded</p>
-                    <button
-                      onClick={() => onLoadModel('miku')}
-                      className="cursor-pointer text-[10px] font-mono font-bold text-zinc-100 bg-teal-950/50 border border-teal-500/30 hover:bg-[#39c5bb] hover:text-black rounded px-3 py-1.5 transition-all shadow-sm"
-                    >
-                      + Quick Load Miku
-                    </button>
+                  <div className="flex flex-col items-center justify-center py-8 text-center bg-[#1a1d24] border border-[#22252c] rounded gap-2">
+                    <p className="text-[11px] text-zinc-400 font-bold">No models in scene</p>
+                    {onLoadDemo ? (
+                      <button
+                        type="button"
+                        onClick={() => onLoadDemo(FEATURED_DEMO_ID)}
+                        className="cursor-pointer text-[10px] font-mono font-bold text-zinc-100 bg-teal-950/50 border border-teal-500/30 hover:bg-[#39c5bb] hover:text-black rounded px-3 py-1.5 transition-all shadow-sm"
+                      >
+                        Play featured demo
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onLoadModel('miku')}
+                        className="cursor-pointer text-[10px] font-mono font-bold text-zinc-100 bg-teal-950/50 border border-teal-500/30 hover:bg-[#39c5bb] hover:text-black rounded px-3 py-1.5 transition-all shadow-sm"
+                      >
+                        + Quick Load Miku
+                      </button>
+                    )}
                   </div>
                 ) : (
                   appState.models.map((model) => {
@@ -527,6 +582,16 @@ export default function Sidebar({
                 )}
               </div>
             </div>
+
+            {onApplyPose && onCapturePose && onClearPoseHold && (
+              <PoseLibraryPanel
+                activePoseId={selectedModel?.activePoseId ?? null}
+                disabled={!selectedModel}
+                onApplyPose={onApplyPose}
+                onCapturePose={onCapturePose}
+                onClearPose={onClearPoseHold}
+              />
+            )}
 
             {/* 2C: Bone Rotations and Skeleton Selection (Neon Teal) */}
             <div className="border-[#39c5bb]/20 border bg-[#121418] p-3 rounded-md shadow-md">
@@ -820,6 +885,11 @@ export default function Sidebar({
 
         {activeTab === 'editor' && selectedModel && (
           <div className="space-y-3">
+            <ModelAnalyzerPanel
+              report={selectedModel.modelAnalysis}
+              onReanalyze={onReanalyzeModel}
+              analyzing={analyzingModel}
+            />
             <div className="bg-[#121418] border border-violet-500/20 rounded-md p-2">
               <div className="text-[10px] font-bold text-violet-300 mb-2">Bones (PMX)</div>
               <BoneHierarchyPanel

@@ -1,0 +1,11 @@
+{
+  "name": "Example PMX Pack",
+  "model": "model.pmx",
+  "motions": ["motion.vmd"],
+  "camera": null,
+  "files": [
+    "model.pmx",
+    "motion.vmd",
+    "textures/body.png"
+  ]
+}

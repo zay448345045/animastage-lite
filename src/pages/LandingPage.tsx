@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import {
   Play,
   ChevronRight,
@@ -10,102 +10,97 @@ import {
   Sparkles,
   ExternalLink,
   Download,
+  Spline,
+  Library,
+  ScanSearch,
+  LayoutGrid,
+  Share2,
+  RotateCcw,
 } from 'lucide-react';
+import LandingHeroMockup from './landing/LandingHeroMockup';
+import FlowDiagram from './landing/FlowDiagram';
+import DemoGalleryGrid from './landing/DemoGalleryGrid';
+import ConversionBridge from './landing/ConversionBridge';
 
 const ANDROID_APK_URL = '/app-debug.apk';
 const ANDROID_APK_FILENAME = 'AnimaStage-Lite-debug.apk';
+const SITE_URL = 'https://animastage-lite.app';
 
 interface LandingPageProps {
   onStart: () => void;
   onStartDemo: () => void;
+  onStartDemoGallery?: () => void;
+  onStartDemoId?: (demoId: string) => void;
 }
 
-const SITE_URL = 'https://animastage-lite.app';
-
-const FEATURES = [
-  {
-    title: 'Instant browser preview',
-    desc: 'Drop your MikuMikuDance model and see it live in seconds — no install, no Windows-only lock-in.',
-  },
-  {
-    title: 'Play any VMD motion',
-    desc: 'Load dances and emotes without opening desktop MMD. Scrub the timeline in real time.',
-  },
-  {
-    title: 'Realistic cloth physics',
-    desc: 'Skirt, hair, and accessories move with Bullet WASM while you preview.',
-  },
-  {
-    title: 'Cinematic looks, fast GPU',
-    desc: 'Bloom, depth of field, and weather-style presets without a gaming PC.',
-  },
-  {
-    title: 'Shorts-ready 9:16',
-    desc: 'One click to frame for TikTok, Reels, and YouTube Shorts at 1080×1920.',
-  },
-  {
-    title: 'Clean MP4 export',
-    desc: 'Record share-ready video — no gizmos or grid in the final frame.',
-  },
-  {
-    title: 'Private by default',
-    desc: 'PMX and VMD processing runs client-side on your device.',
-  },
-  {
-    title: 'Android app',
-    desc: 'Same MMD studio on your phone — sideload the APK and create on the go.',
-  },
+const CORE_FEATURES = [
+  { icon: Upload, title: 'Load PMX / PMD + VMD', desc: 'Drop your folder — see your character move in one step.' },
+  { icon: Play, title: 'Real-time playback', desc: 'Watch dances instantly — no desktop MMD required.' },
+  { icon: Video, title: 'MP4 export', desc: 'Ship Shorts or widescreen video from the same tab.' },
 ] as const;
 
-const USE_CASES = [
-  { label: 'VTuber motion checks', desc: 'Preview dances before stream — in a tab.' },
-  { label: 'Dance cover Shorts', desc: 'Batch vertical clips without desktop MMD.' },
-  { label: 'Indie dev prototyping', desc: 'Test PMX/VMD in WebGL before shipping.' },
-  { label: 'Chromebook & Mac', desc: 'MMD online where desktop MMD does not run.' },
+const ADVANCED_FEATURES = [
+  { icon: Spline, title: 'Curve Editor', desc: 'Edit motion like pro tools — smooth curves, precise timing.' },
+  { icon: Library, title: 'Pose Library', desc: 'Strike a pose in one click — great for thumbnails and streams.' },
+  { icon: ScanSearch, title: 'Model Analyzer', desc: 'Catch broken textures and lag before you hit record.' },
+  { icon: LayoutGrid, title: 'Demo Gallery', desc: 'Try a full scene instantly — zero files to hunt down.' },
 ] as const;
 
 const FAQ = [
   {
     q: 'What is MMD online?',
-    a: 'MMD online means running MikuMikuDance-style workflows in a web browser — loading PMX models and VMD motions without installing desktop MMD. AnimaStage Lite is a full browser studio with physics, timeline, and video export.',
+    a: 'Run MikuMikuDance-style workflows in the browser — PMX, VMD, timeline, and export without installing desktop MMD.',
   },
   {
-    q: 'Can I run MikuMikuDance in the browser?',
-    a: 'You cannot run the official MMD executable in a browser, but AnimaStage Lite supports the same file formats (PMX/PMD, VMD) and lets you preview, edit, and export video online using WebGL2.',
+    q: 'Is this a PMX viewer or a full studio?',
+    a: 'Both. Preview instantly, then edit with curves, poses, analyzer, and MP4 export — MMD without install.',
   },
   {
-    q: 'Does AnimaStage Lite work without install?',
-    a: 'Yes. Open the studio in Chrome or Edge — no download required. An optional Android APK is available if you prefer a native app on your phone.',
-  },
-  {
-    q: 'Is AnimaStage Lite free?',
-    a: 'The Lite studio is free to use in the browser and open source on GitHub. Optional AI features may require your own API key. AnimaStage Pro is a separate advanced product.',
-  },
-  {
-    q: 'What file formats are supported?',
-    a: 'PMX and PMD models, VMD motion (including camera tracks), textures, and HDR environments. Export includes MP4 (WebCodecs on Chrome/Edge) and VMD from the timeline editor.',
-  },
-  {
-    q: 'Can I export vertical video for TikTok and YouTube Shorts?',
-    a: 'Yes. Switch to 9:16 portrait mode and export at 1080×1920. The studio optimizes performance for stable vertical recording.',
-  },
-  {
-    q: 'Are my models uploaded to a server?',
-    a: 'Core editing runs client-side in your browser. Files are not uploaded for basic load-and-play unless you enable optional cloud or collab features.',
-  },
-  {
-    q: 'MMD online vs desktop MMD — which should I use?',
-    a: 'Use AnimaStage Lite for quick previews, Shorts, and any device with a modern browser. Use desktop MikuMikuDance for legacy plugins and long-form traditional MMD production.',
+    q: 'Are files uploaded to a server?',
+    a: 'Core editing is client-side. Your models stay on your device.',
   },
 ] as const;
 
-export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) {
-  const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  };
+function PrimaryBtn({ onClick, children, className = '' }: { onClick: () => void; children: ReactNode; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-400 hover:from-cyan-400 hover:to-cyan-300 text-zinc-950 font-bold text-sm sm:text-base px-6 py-3.5 shadow-lg shadow-cyan-500/25 transition-all cursor-pointer ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GhostBtn({ onClick, children, className = '' }: { onClick: () => void; children: ReactNode; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-cyan-500/30 text-zinc-100 font-semibold text-sm sm:text-base px-6 py-3.5 transition-all cursor-pointer ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-xs font-bold uppercase tracking-widest text-cyan-400/90 mb-3">{children}</p>
+  );
+}
+
+export default function LandingPage({
+  onStart,
+  onStartDemo,
+  onStartDemoGallery,
+  onStartDemoId,
+}: LandingPageProps) {
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   useEffect(() => {
-    document.title = 'MMD Online — Run PMX & VMD in Browser | AnimaStage Lite';
+    document.title = 'Run MMD in Your Browser — No Install | AnimaStage Lite';
 
     const faqSchema = {
       '@context': 'https://schema.org',
@@ -117,553 +112,421 @@ export default function LandingPage({ onStart, onStartDemo }: LandingPageProps) 
       })),
     };
 
-    const appSchema = {
-      '@context': 'https://schema.org',
-      '@type': 'SoftwareApplication',
-      name: 'AnimaStage Lite',
-      applicationCategory: 'MultimediaApplication',
-      operatingSystem: 'Web Browser, Android',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-      description:
-        'Browser-based MMD online studio. Load PMX and VMD, preview with physics, export 9:16 Shorts.',
-      url: SITE_URL,
-      downloadUrl: `${SITE_URL}/app-debug.apk`,
-    };
-
     const script = document.createElement('script');
     script.type = 'application/ld+json';
     script.id = 'landing-jsonld';
-    script.textContent = JSON.stringify([faqSchema, appSchema]);
+    script.textContent = JSON.stringify([
+      faqSchema,
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'AnimaStage Lite',
+        applicationCategory: 'MultimediaApplication',
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+        description: 'MMD online — PMX viewer, VMD player browser, no install.',
+        url: SITE_URL,
+      },
+    ]);
     document.head.appendChild(script);
-
-    return () => {
-      document.getElementById('landing-jsonld')?.remove();
-    };
+    return () => document.getElementById('landing-jsonld')?.remove();
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-zinc-100 font-sans antialiased">
+    <div className="min-h-screen landing-mesh text-zinc-100 font-sans antialiased">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-[#0a0a0c]/90 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-50 border-b border-white/5 glass-panel-strong">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           <a href="/" className="flex items-center gap-2 shrink-0">
-            <div className="h-8 w-8 rounded-md bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
-              <Play className="w-4 h-4 text-cyan-400 fill-cyan-400" />
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-500/30 to-violet-500/20 border border-white/10 flex items-center justify-center">
+              <Play className="w-4 h-4 text-cyan-300 fill-cyan-300" />
             </div>
             <span className="font-display font-bold text-lg tracking-tight">
-              AnimaStage <span className="text-cyan-400 font-semibold text-sm">Lite</span>
+              AnimaStage <span className="text-cyan-400 text-sm font-semibold">Lite</span>
             </span>
           </a>
 
-          <nav className="hidden sm:flex items-center gap-6 text-sm text-zinc-400">
-            <button type="button" onClick={() => scrollTo('how')} className="hover:text-cyan-400 transition-colors cursor-pointer">
-              How it works
+          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
+            <button type="button" onClick={() => scrollTo('demo')} className="hover:text-white cursor-pointer transition-colors">
+              Demo
             </button>
-            <button type="button" onClick={() => scrollTo('features')} className="hover:text-cyan-400 transition-colors cursor-pointer">
+            <button type="button" onClick={() => scrollTo('flow')} className="hover:text-white cursor-pointer transition-colors">
+              Flow
+            </button>
+            <button type="button" onClick={() => scrollTo('features')} className="hover:text-white cursor-pointer transition-colors">
               Features
             </button>
-            <button type="button" onClick={() => scrollTo('compare')} className="hover:text-cyan-400 transition-colors cursor-pointer">
-              Compare
-            </button>
-            <button type="button" onClick={() => scrollTo('android')} className="hover:text-cyan-400 transition-colors cursor-pointer">
-              Android
-            </button>
-            <button type="button" onClick={() => scrollTo('faq')} className="hover:text-cyan-400 transition-colors cursor-pointer">
-              FAQ
-            </button>
-            <a
-              href="https://github.com/FBNonaMe/animastage-lite"
-              className="hover:text-cyan-400 transition-colors inline-flex items-center gap-1"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href="https://github.com/FBNonaMe/animastage-lite" target="_blank" rel="noreferrer" className="hover:text-white inline-flex items-center gap-1 transition-colors">
               <Github className="w-4 h-4" />
               GitHub
             </a>
           </nav>
 
-          <button
-            type="button"
-            onClick={onStart}
-            className="shrink-0 inline-flex items-center gap-1.5 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors cursor-pointer"
-          >
-            Try Studio
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <PrimaryBtn onClick={onStartDemo} className="!text-sm !py-2 !px-4">
+            Try Demo
+          </PrimaryBtn>
         </div>
       </header>
 
       <main>
-        {/* Hero */}
-        <section className="relative overflow-hidden border-b border-zinc-800/60">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,211,238,0.12),transparent)] pointer-events-none" />
-
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-16 md:pt-16 md:pb-20">
-            <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+        {/* §1 Hero */}
+        <section className="relative pt-12 pb-16 md:pt-20 md:pb-24 overflow-hidden">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
               <div className="text-center lg:text-left">
-                <p className="inline-flex items-center gap-2 text-xs font-medium text-cyan-400/90 border border-cyan-500/25 bg-cyan-500/10 rounded-full px-3 py-1 mb-6">
-                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                  Browser &amp; Android · WebGL2 · PMX &amp; VMD
-                </p>
+                <SectionLabel>MMD online · WebGL + WASM</SectionLabel>
 
-                <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.25rem] leading-[1.08] tracking-tight text-white mb-5">
-                  Run MMD online in your browser
-                  <span className="block text-zinc-400 font-bold text-3xl sm:text-4xl mt-1">
-                    No install required
-                  </span>
+                <h1 className="font-display font-bold text-4xl sm:text-5xl lg:text-[3.25rem] leading-[1.05] tracking-tight text-white mb-5">
+                  Run MMD in Your Browser — No Install
                 </h1>
 
-                <p className="text-zinc-400 text-base sm:text-lg leading-relaxed max-w-xl mx-auto lg:mx-0 mb-8">
-                  <strong className="text-zinc-200 font-semibold">AnimaStage Lite</strong> is a{' '}
-                  <strong className="text-zinc-300">MikuMikuDance browser</strong> studio — drag{' '}
-                  <strong className="text-zinc-300">PMX</strong> and <strong className="text-zinc-300">VMD</strong>,
-                  preview with cloth physics, export <strong className="text-zinc-200 font-semibold">1080×1920 Shorts</strong>.
-                  Built for creators, VTubers, and indie devs. Also on Android.
+                <p className="text-lg text-zinc-400 leading-relaxed max-w-xl mx-auto lg:mx-0 mb-8">
+                  Load PMX + VMD, preview animations instantly, and export video — all in one tab.
                 </p>
 
-                <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center lg:justify-start mb-6">
-                  <button
-                    type="button"
-                    onClick={onStart}
-                    className="inline-flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-base px-6 py-3.5 rounded-xl transition-colors cursor-pointer shadow-lg shadow-cyan-500/20"
-                  >
-                    Try Studio — free
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onStartDemo}
-                    className="inline-flex items-center justify-center gap-2 border border-zinc-700 hover:border-cyan-500/50 hover:bg-zinc-900 text-zinc-200 font-semibold text-base px-6 py-3.5 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-cyan-400" />
-                    Open demo scene
-                  </button>
-                  <a
-                    href={ANDROID_APK_URL}
-                    download={ANDROID_APK_FILENAME}
-                    className="inline-flex items-center justify-center gap-2 border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-950/50 text-emerald-200 font-semibold text-base px-6 py-3.5 rounded-xl transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Android APK
-                  </a>
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center lg:justify-start mb-5">
+                  <PrimaryBtn onClick={onStartDemo}>
+                    <Sparkles className="w-4 h-4" />
+                    Try Demo — Free
+                  </PrimaryBtn>
+                  <GhostBtn onClick={onStart}>
+                    <Upload className="w-4 h-4 text-cyan-400" />
+                    Upload Your Model
+                  </GhostBtn>
                 </div>
 
-                <p className="text-xs text-zinc-500 flex flex-wrap gap-x-4 gap-y-1 justify-center lg:justify-start">
-                  <span className="inline-flex items-center gap-1">
-                    <Shield className="w-3.5 h-3.5 text-zinc-600" />
-                    Files stay on your device
-                  </span>
-                  <span>Open source</span>
-                  <span>Chrome &amp; Edge</span>
-                </p>
+                <div className="flex flex-col gap-2 mb-4">
+                  <p className="text-sm text-zinc-300 flex items-center justify-center lg:justify-start gap-2">
+                    <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
+                    Runs locally in your browser — no upload to our servers
+                  </p>
+                  <p className="text-xs text-cyan-400/90 font-medium flex items-center justify-center lg:justify-start gap-2">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400 landing-pulse-dot" />
+                    Instant animation in ~2 seconds
+                  </p>
+                </div>
               </div>
 
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={onStart}
-                  className="block w-full rounded-xl border border-zinc-800 overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-cyan-500/20 hover:ring-cyan-500/40 transition-all cursor-pointer text-left"
-                >
-                  <img
-                    src="/studio-screenshot.png"
-                    alt="AnimaStage Lite studio — PMX model, timeline, and WebGL viewport"
-                    className="w-full h-auto"
-                    width={1200}
-                    height={675}
-                    loading="eager"
-                  />
-                </button>
-                <p className="text-center text-[11px] text-zinc-600 mt-3 font-mono">
-                  Real studio UI — click to open
-                </p>
-              </div>
+              <LandingHeroMockup />
             </div>
           </div>
         </section>
 
-        {/* Social proof */}
-        <section className="border-b border-zinc-800/60 py-8 bg-zinc-950/50">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
-            <p className="text-sm text-zinc-500 mb-3">Early creators say</p>
-            <p className="text-lg sm:text-xl text-zinc-300 font-medium max-w-2xl mx-auto">
-              &ldquo;Amazing — finally MMD without installing anything.&rdquo;
-            </p>
-            <div className="flex flex-wrap justify-center gap-4 mt-5 text-xs text-zinc-500">
-              <span>Shorts &amp; Reels</span>
-              <span>·</span>
-              <span>VTuber previews</span>
-              <span>·</span>
-              <span>MMD quick tests</span>
-            </div>
-          </div>
-        </section>
-
-        {/* How it works */}
-        <section id="how" className="py-16 md:py-20 scroll-mt-16">
+        {/* §2 Instant Demo */}
+        <section id="demo" className="py-16 md:py-20 scroll-mt-16 border-t border-white/5">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl sm:text-3xl text-center text-white mb-3">
-              How AnimaStage Lite works
-            </h2>
-            <p className="text-zinc-500 text-center mb-12 max-w-lg mx-auto">
-              Three steps from landing to your first clip — fast 3D animation online workflow.
-            </p>
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <SectionLabel>Demo Gallery</SectionLabel>
+              <h2 className="font-display font-bold text-3xl sm:text-4xl text-white mb-3">
+                See it in action in seconds
+              </h2>
+              <p className="text-zinc-400 text-sm sm:text-base mb-1">
+                No setup. No files needed. Just click and watch.
+              </p>
+              <p className="text-cyan-400/90 text-sm font-medium">
+                Click any demo → see animation instantly in the studio
+              </p>
+            </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
+            <DemoGalleryGrid
+              onSelectDemo={(id) => (onStartDemoId ? onStartDemoId(id) : onStartDemo())}
+            />
+
+            <div className="mt-8 space-y-4">
+              <div className="flex flex-wrap justify-center gap-3">
+                <PrimaryBtn onClick={onStartDemo}>Try featured demo</PrimaryBtn>
+                {onStartDemoGallery && (
+                  <GhostBtn onClick={onStartDemoGallery}>Browse all in studio</GhostBtn>
+                )}
+              </div>
+
+              <div className="glass-panel rounded-xl p-4 sm:p-5 border-amber-500/20 text-center">
+                <p className="text-base font-semibold text-zinc-100 mb-3">
+                  🔥 Your turn — try your own model
+                </p>
+                <GhostBtn onClick={onStart} className="mx-auto">
+                  <Upload className="w-4 h-4 text-amber-400" />
+                  Upload PMX/VMD
+                </GhostBtn>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Conversion bridge — primary funnel */}
+        <section className="py-10 md:py-12 px-4 sm:px-6 border-t border-white/5 bg-zinc-950/50">
+          <div className="max-w-3xl mx-auto">
+            <ConversionBridge onUpload={onStart} variant="prominent" />
+          </div>
+        </section>
+
+        {/* New to MMD? */}
+        <section className="py-12 border-t border-white/5">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+            <SectionLabel>New to MMD?</SectionLabel>
+            <h2 className="font-display font-bold text-2xl text-white mb-8">Start here — three steps</h2>
+            <div className="grid sm:grid-cols-3 gap-4 text-left">
               {[
-                {
-                  step: '1',
-                  icon: Upload,
-                  title: 'Drop your PMX model and VMD motion',
-                  desc: 'Drag files onto the viewport or open the demo rig — PMX viewer online, no desktop MMD.',
-                },
-                {
-                  step: '2',
-                  icon: Play,
-                  title: 'Preview with physics and lighting in real time',
-                  desc: 'Scrub the timeline, tune FX, switch to 9:16 for vertical anime animation.',
-                },
-                {
-                  step: '3',
-                  icon: Video,
-                  title: 'Edit on the timeline and export vertical video',
-                  desc: 'Record MP4 with a clean frame — WebCodecs HQ or Live capture.',
-                },
-              ].map(({ step, icon: Icon, title, desc }) => (
-                <div
-                  key={step}
-                  className="relative rounded-xl border border-zinc-800 bg-zinc-900/40 p-6"
-                >
-                  <span className="text-[10px] font-mono text-cyan-500/80 mb-3 block">STEP {step}</span>
-                  <Icon className="w-8 h-8 text-cyan-400 mb-4" strokeWidth={1.5} />
-                  <h3 className="font-semibold text-zinc-100 mb-2">{title}</h3>
-                  <p className="text-sm text-zinc-500 leading-relaxed">{desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* SEO body copy */}
-        <section id="about" className="py-16 border-t border-zinc-800/60 bg-zinc-950/30 scroll-mt-16">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl sm:text-3xl text-white mb-6 text-center">
-              MikuMikuDance online — without installing anything
-            </h2>
-            <div className="text-sm sm:text-base text-zinc-400 leading-relaxed space-y-4">
-              <p>
-                AnimaStage Lite brings <strong className="text-zinc-300">MMD online</strong> to Chrome, Edge,
-                Firefox, and Android. Load <strong className="text-zinc-300">PMX/PMD</strong> characters, apply{' '}
-                <strong className="text-zinc-300">VMD</strong> dances, scrub a timeline, tune morphs and bones, and
-                export <strong className="text-zinc-300">MP4</strong> — including{' '}
-                <strong className="text-zinc-300">9:16 vertical</strong> for Shorts and Reels.
-              </p>
-              <p>
-                Unlike desktop MMD, there is no DirectX setup and no OS barrier. The app runs client-side in WebGL — your
-                models stay on your machine. Ideal for <strong className="text-zinc-300">VTubers</strong> checking motion,
-                dance cover creators batching vertical clips, and developers prototyping character animation in the browser.
-              </p>
-              <p>
-                The workflow is deliberately fast: drag files → play → adjust camera → export. Cloth physics, bloom, DOF,
-                and weather presets add polish without a gaming GPU. Power users get VMD export, animation layers, and an
-                installable <strong className="text-zinc-300">Android APK</strong>.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Use cases */}
-        <section className="py-16 border-t border-zinc-800/60">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl sm:text-3xl text-center text-white mb-3">
-              Built for creators, VTubers, and indie devs
-            </h2>
-            <p className="text-zinc-500 text-center mb-10 max-w-xl mx-auto text-sm">
-              WebGL animation tools for anyone who needs MMD in the browser — not a static model viewer.
-            </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {USE_CASES.map((u) => (
-                <div key={u.label} className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
-                  <h3 className="font-semibold text-zinc-100 text-sm mb-1.5">{u.label}</h3>
-                  <p className="text-xs text-zinc-500 leading-relaxed">{u.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Demo */}
-        <section id="demo" className="py-16 border-y border-zinc-800/60 bg-zinc-950/30 scroll-mt-16">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="grid lg:grid-cols-2 gap-10 items-center">
-              <div>
-                <h2 className="font-display font-bold text-2xl sm:text-3xl text-white mb-4">
-                  See it in action
-                </h2>
-                <ul className="space-y-3 text-zinc-400 text-sm mb-8">
-                  <li className="flex gap-2">
-                    <span className="text-cyan-400">✓</span> WebGL2 stage with MMD-style controls
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-cyan-400">✓</span> Timeline, morphs, and bone tracks
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-cyan-400">✓</span> Portrait 9:16 mode for vertical video
-                  </li>
-                </ul>
+                { step: '1', title: 'Try demo', desc: 'Pick a scene — motion plays in ~2s', action: onStartDemo, cta: 'Open demo' },
+                { step: '2', title: 'Upload model', desc: 'Drop PMX + VMD when you are ready', action: onStart, cta: 'Upload files' },
+                { step: '3', title: 'Export video', desc: 'MP4 for Shorts or YouTube', action: onStart, cta: 'Go to studio' },
+              ].map((item) => (
                 <button
+                  key={item.step}
                   type="button"
-                  onClick={onStartDemo}
-                  className="inline-flex items-center gap-2 bg-zinc-100 hover:bg-white text-zinc-950 font-bold px-5 py-3 rounded-lg cursor-pointer transition-colors"
+                  onClick={item.action}
+                  className="glass-panel rounded-xl p-5 text-left hover:border-cyan-500/30 transition-colors cursor-pointer group"
                 >
-                  <Play className="w-4 h-4 fill-current" />
-                  Open demo scene
+                  <span className="text-[10px] font-mono text-cyan-500">STEP {item.step}</span>
+                  <p className="font-semibold text-white mt-2 mb-1">{item.title}</p>
+                  <p className="text-xs text-zinc-500 mb-3">{item.desc}</p>
+                  <span className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300">{item.cta} →</span>
                 </button>
-              </div>
-              <div className="rounded-xl border border-zinc-800 overflow-hidden">
-                <img
-                  src="/studio-screenshot.png"
-                  alt="AnimaStage Lite demo"
-                  className="w-full h-auto"
-                  loading="lazy"
-                />
-              </div>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* Features */}
+        {/* §3 User flow */}
+        <section id="flow" className="py-16 md:py-20 border-t border-white/5 bg-zinc-950/40 scroll-mt-16">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
+            <SectionLabel>Perfect user flow</SectionLabel>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-white mb-2">
+              From idea to video in under a minute
+            </h2>
+            <p className="text-zinc-500 text-sm mb-10 max-w-lg mx-auto">
+              Demo → upload → analyze → edit → preview → export → share
+            </p>
+            <FlowDiagram />
+            <div className="mt-10 max-w-md mx-auto">
+              <ConversionBridge onUpload={onStart} variant="compact" />
+            </div>
+          </div>
+        </section>
+
+        {/* §4 Features */}
         <section id="features" className="py-16 md:py-20 scroll-mt-16">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl sm:text-3xl text-center text-white mb-3">
-              Everything you need for browser MMD — in one tab
-            </h2>
-            <p className="text-zinc-500 text-center mb-12 max-w-xl mx-auto text-sm">
-              Run 3D models in the browser with a full WebMMD studio — not just a PMX viewer online.
-            </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {FEATURES.map((f) => (
-                <div
-                  key={f.title}
-                  className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-5 hover:border-zinc-700 transition-colors"
-                >
-                  <h3 className="font-semibold text-zinc-100 text-sm mb-1.5">{f.title}</h3>
-                  <p className="text-xs text-zinc-500 leading-relaxed">{f.desc}</p>
+            <div className="text-center mb-12">
+              <SectionLabel>Features</SectionLabel>
+              <h2 className="font-display font-bold text-3xl sm:text-4xl text-white">
+                Everything for MMD without install
+              </h2>
+            </div>
+
+            <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Core</h3>
+            <div className="grid sm:grid-cols-3 gap-4 mb-12">
+              {CORE_FEATURES.map((f) => (
+                <div key={f.title} className="glass-panel rounded-2xl p-6">
+                  <f.icon className="w-6 h-6 text-cyan-400 mb-4" strokeWidth={1.5} />
+                  <h4 className="font-semibold text-white mb-1.5">{f.title}</h4>
+                  <p className="text-sm text-zinc-500 leading-relaxed">{f.desc}</p>
                 </div>
               ))}
             </div>
-          </div>
-        </section>
 
-        {/* 9:16 */}
-        <section className="py-16 border-t border-zinc-800/60 bg-[radial-gradient(ellipse_60%_40%_at_50%_100%,rgba(34,211,238,0.08),transparent)]">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="flex flex-col md:flex-row gap-8 items-center">
-              <div className="flex-shrink-0 w-32 h-56 rounded-2xl border-2 border-dashed border-cyan-500/40 bg-zinc-900/50 flex flex-col items-center justify-center gap-2">
-                <Smartphone className="w-8 h-8 text-cyan-400" />
-                <span className="text-[10px] font-mono text-zinc-500">9:16</span>
-                <span className="text-xs font-bold text-cyan-400">1080×1920</span>
-              </div>
-              <div>
-                <h2 className="font-display font-bold text-2xl text-white mb-3">
-                  Export vertical anime video for Shorts &amp; Reels
-                </h2>
-                <h3 className="text-sm font-semibold text-cyan-400/90 mb-2">1080×1920 · 9:16 Lite mode</h3>
-                <p className="text-zinc-400 text-sm leading-relaxed mb-4">
-                  Portrait mode caps DPR and heavy FX so WebGL stays stable on everyday laptops.
-                  Export native vertical Full HD for TikTok, Reels, and YouTube Shorts.
-                </p>
-                <button
-                  type="button"
-                  onClick={onStart}
-                  className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 cursor-pointer"
+            <h3 className="text-sm font-bold text-violet-400/90 uppercase tracking-wider mb-4">Advanced</h3>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {ADVANCED_FEATURES.map((f) => (
+                <div
+                  key={f.title}
+                  className="glass-panel rounded-2xl p-6 border-violet-500/10 hover:border-violet-500/25 transition-colors"
                 >
-                  Try in studio <ChevronRight className="w-4 h-4" />
-                </button>
+                  <f.icon className="w-6 h-6 text-violet-400 mb-4" strokeWidth={1.5} />
+                  <h4 className="font-semibold text-white mb-1.5">{f.title}</h4>
+                  <p className="text-sm text-zinc-500 leading-relaxed">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-center mt-10">
+              <PrimaryBtn onClick={onStartDemo}>Try Demo — Free</PrimaryBtn>
+            </div>
+          </div>
+        </section>
+
+        {/* §5 Why */}
+        <section id="why" className="py-16 md:py-20 border-t border-white/5 scroll-mt-16">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-10">
+              <SectionLabel>Why we built this</SectionLabel>
+              <h2 className="font-display font-bold text-3xl sm:text-4xl text-white">
+                MMD is powerful, but difficult to set up
+              </h2>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="glass-panel rounded-2xl p-6 border-red-500/10">
+                <h3 className="font-semibold text-zinc-300 mb-4">The old way</h3>
+                <ul className="space-y-3 text-sm text-zinc-500">
+                  <li>· Desktop install and Windows-first tooling</li>
+                  <li>· Plugins, paths, and locale before your first frame</li>
+                  <li>· No path on Mac, Chromebook, or phone</li>
+                </ul>
+              </div>
+              <div className="glass-panel rounded-2xl p-6 border-cyan-500/20 bg-cyan-950/10">
+                <h3 className="font-semibold text-cyan-100 mb-4">Our approach</h3>
+                <p className="text-sm text-zinc-300 leading-relaxed mb-4">
+                  We made MikuMikuDance workflows run <strong className="text-white">entirely in the browser</strong> —
+                  PMX viewer online, VMD player browser, timeline, and Shorts export in one tab.
+                </p>
+                <PrimaryBtn onClick={onStart} className="!text-sm w-full sm:w-auto">
+                  Open Studio
+                </PrimaryBtn>
               </div>
             </div>
           </div>
         </section>
 
-        {/* MMD online vs desktop */}
-        <section id="compare" className="py-16 border-t border-zinc-800/60 scroll-mt-16">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl text-center text-white mb-2">
-              MMD online vs desktop MikuMikuDance
-            </h2>
-            <p className="text-zinc-500 text-center text-sm mb-8 max-w-lg mx-auto">
-              Use Lite as a companion — preview and Shorts in the browser, finish in desktop MMD or Pro when needed.
-            </p>
-            <h3 className="sr-only">Lite vs Pro product comparison</h3>
-            <div className="rounded-xl border border-zinc-800 overflow-hidden text-sm">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-zinc-900/80 text-zinc-400 text-left">
-                    <th className="p-3 font-medium"> </th>
-                    <th className="p-3 font-medium text-cyan-400">Lite (this app)</th>
-                    <th className="p-3 font-medium text-zinc-300">Pro</th>
-                  </tr>
-                </thead>
-                <tbody className="text-zinc-400 divide-y divide-zinc-800">
-                  <tr>
-                    <td className="p-3 text-zinc-500">Best for</td>
-                    <td className="p-3">MMD online · fast preview &amp; Shorts</td>
-                    <td className="p-3">Cinematic multi-character production</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-zinc-500">Platform</td>
-                    <td className="p-3">Browser + Android APK</td>
-                    <td className="p-3">Desktop WebGL pipeline</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-zinc-500">Try</td>
-                    <td className="p-3">
-                      <a href="https://animastage-lite.app/app" className="text-cyan-400 hover:underline">
-                        animastage-lite.app
-                      </a>
-                    </td>
-                    <td className="p-3">
-                      <a
-                        href="https://animastagepro.dev/"
-                        className="text-zinc-300 hover:underline inline-flex items-center gap-1"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        animastagepro.dev <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p className="text-xs text-zinc-600 text-center mt-4">
-              Sidebar → Pro in Lite = advanced modules (mocap, AI), not the Pro product.
-            </p>
-          </div>
-        </section>
-
-        {/* Android */}
-        <section id="android" className="py-16 md:py-20 scroll-mt-16 border-t border-zinc-800/60 bg-zinc-950/40">
+        {/* §6 Export & Share */}
+        <section id="export" className="py-16 md:py-20 border-t border-white/5 bg-zinc-950/30 scroll-mt-16">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="grid lg:grid-cols-2 gap-10 items-center">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-400/90 mb-2">
-                  New — Android integration
-                </p>
-                <h2 className="font-display font-bold text-2xl sm:text-3xl text-white mb-4">
-                  AnimaStage Lite on Android
+                <SectionLabel>Export &amp; share</SectionLabel>
+                <h2 className="font-display font-bold text-3xl text-white mb-4">
+                  Create and share animations anywhere
                 </h2>
-                <h3 className="text-sm font-semibold text-zinc-300 mb-4">Same studio — installable APK</h3>
-                <p className="text-zinc-400 text-sm sm:text-base leading-relaxed mb-6">
-                  The same studio as in the browser — installable Android app. PMX, VMD, timeline, FX,
-                  and Shorts export without a desktop.
+                <p className="text-zinc-400 text-sm leading-relaxed mb-4">
+                  Record MP4 from the viewport. Clean frame — no gizmos in the final clip.
                 </p>
-                <ul className="text-sm text-zinc-500 space-y-2 mb-8">
-                  <li className="flex items-start gap-2">
-                    <Smartphone className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                    Mobile UI: bottom bar, templates, touch timeline
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-violet-300 bg-violet-500/15 border border-violet-500/30 rounded-full px-3 py-1 mb-6">
+                  Perfect for Shorts / Reels
+                </span>
+                <ul className="space-y-2 text-sm text-zinc-500 mb-6">
+                  <li className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-cyan-400" />
+                    16:9 landscape or 9:16 vertical (1080×1920)
                   </li>
-                  <li className="flex items-start gap-2">
-                    <Shield className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                    Processing stays on your device
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Upload className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                    Sideload debug APK (Google Play coming later)
+                  <li className="flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-violet-400" />
+                    Download and post from your phone or PC
                   </li>
                 </ul>
-                <a
-                  href={ANDROID_APK_URL}
-                  download={ANDROID_APK_FILENAME}
-                  className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3.5 rounded-xl transition-colors shadow-lg shadow-emerald-900/30"
-                >
-                  <Download className="w-5 h-5" />
-                  Download app-debug.apk
-                </a>
-                <p className="text-[11px] text-zinc-600 mt-3 font-mono">
-                  ~19 MB · Android 6+ · allow install from unknown sources
-                </p>
+                <GhostBtn onClick={onStart}>
+                  Export from studio
+                  <ChevronRight className="w-4 h-4" />
+                </GhostBtn>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 text-sm text-zinc-400 space-y-4">
-                <p className="font-semibold text-zinc-200">Install steps</p>
-                <ol className="list-decimal list-inside space-y-2 text-zinc-500">
-                  <li>Download <span className="font-mono text-zinc-400">app-debug.apk</span></li>
-                  <li>Open the file → Install</li>
-                  <li>If blocked, allow unknown apps for your browser or Files app</li>
-                  <li>Launch <strong className="text-zinc-300">AnimaStage Lite</strong></li>
-                </ol>
-                <p className="text-xs text-zinc-600 border-t border-zinc-800 pt-4">
-                  Prefer the browser?{' '}
-                  <button type="button" onClick={onStart} className="text-cyan-400 hover:underline cursor-pointer">
-                    Open web studio
-                  </button>
-                </p>
+
+              <div className="flex gap-4 justify-center lg:justify-end items-end">
+                <div className="glass-panel rounded-2xl p-4 w-40 sm:w-48 aspect-video flex flex-col items-center justify-center opacity-80">
+                  <span className="text-[10px] font-mono text-zinc-500 mb-2">16:9</span>
+                  <Video className="w-9 h-9 text-cyan-400/50" />
+                  <span className="text-xs text-zinc-500 mt-2">YouTube</span>
+                </div>
+                <div className="relative glass-panel rounded-2xl w-[120px] sm:w-[132px] aspect-[9/16] border-violet-500/40 shadow-lg shadow-violet-950/50 overflow-hidden">
+                  <div className="absolute top-2 left-2 right-2 z-10 flex justify-between items-start">
+                    <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-violet-500 text-white">
+                      9:16
+                    </span>
+                  </div>
+                  <img
+                    src="./demos/thumbs/party-dance.svg"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-80"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3 text-center">
+                    <Smartphone className="w-6 h-6 text-white mx-auto mb-1 opacity-90" />
+                    <p className="text-[10px] font-semibold text-white">TikTok · Reels</p>
+                    <p className="text-[9px] text-violet-200 mt-0.5">Vertical MP4</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* FAQ */}
-        <section id="faq" className="py-16 border-t border-zinc-800/60 scroll-mt-16">
-          <div className="max-w-2xl mx-auto px-4 sm:px-6">
-            <h2 className="font-display font-bold text-2xl text-center text-white mb-2">
-              Frequently asked questions
+        {/* §7 Growth loop */}
+        <section className="py-16 md:py-20 border-t border-white/5">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+            <SectionLabel>Growth loop</SectionLabel>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-white mb-3">
+              Create → Export → Share → Repeat
             </h2>
-            <p className="text-zinc-600 text-center text-xs mb-8">MMD online · PMX · VMD · browser · Android</p>
-            <div className="space-y-3">
-              {FAQ.map((item) => (
-                <details
-                  key={item.q}
-                  className="group rounded-lg border border-zinc-800 bg-zinc-900/30 open:border-cyan-500/30"
-                >
-                  <summary className="p-4 cursor-pointer font-medium text-zinc-200 text-sm list-none flex justify-between items-center">
-                    {item.q}
-                    <ChevronRight className="w-4 h-4 text-zinc-600 group-open:rotate-90 transition-transform shrink-0" />
-                  </summary>
-                  <p className="px-4 pb-4 text-sm text-zinc-500 leading-relaxed">{item.a}</p>
-                </details>
+            <p className="text-zinc-400 text-sm leading-relaxed mb-8 max-w-lg mx-auto">
+              Make a clip, post it, send friends to AnimaStage Lite. Optional end-card watermark helps others discover
+              MMD online — your dance, your model, one link to try it themselves.
+            </p>
+            <div className="grid sm:grid-cols-4 gap-3 text-left mb-8">
+              {[
+                { icon: Sparkles, title: 'Create', desc: 'Demo or your PMX' },
+                { icon: Video, title: 'Export', desc: 'MP4 in one tab' },
+                { icon: Share2, title: 'Share', desc: 'Shorts, Discord, X' },
+                { icon: RotateCcw, title: 'Repeat', desc: 'Back to studio' },
+              ].map((item) => (
+                <div key={item.title} className="glass-panel rounded-xl p-4 text-center sm:text-left">
+                  <item.icon className="w-5 h-5 text-cyan-400 mb-2 mx-auto sm:mx-0" />
+                  <p className="font-semibold text-sm text-white">{item.title}</p>
+                  <p className="text-xs text-zinc-500 mt-1">{item.desc}</p>
+                </div>
               ))}
             </div>
+            <p className="text-xs text-zinc-500 glass-panel inline-block rounded-lg px-4 py-2 border border-white/5">
+              Tip: mention <strong className="text-zinc-400">animastage-lite.app</strong> in your description — optional
+              &quot;Made with AnimaStage Lite&quot; watermark coming to export settings.
+            </p>
           </div>
         </section>
 
-        {/* Final CTA */}
-        <section className="py-20 border-t border-zinc-800/60">
-          <div className="max-w-2xl mx-auto px-4 text-center">
-            <h2 className="font-display font-bold text-3xl text-white mb-4">
-              Start creating in 60 seconds
+        {/* FAQ compact */}
+        <section id="faq" className="py-12 border-t border-white/5 scroll-mt-16">
+          <div className="max-w-xl mx-auto px-4 sm:px-6 space-y-3">
+            <h2 className="font-display font-bold text-xl text-center text-white mb-6">FAQ</h2>
+            {FAQ.map((item) => (
+              <details key={item.q} className="glass-panel rounded-lg open:border-cyan-500/20">
+                <summary className="p-4 cursor-pointer text-sm font-medium text-zinc-200 list-none flex justify-between">
+                  {item.q}
+                  <ChevronRight className="w-4 h-4 text-zinc-600" />
+                </summary>
+                <p className="px-4 pb-4 text-sm text-zinc-500">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        {/* §8 Final CTA */}
+        <section className="py-20 md:py-28 border-t border-white/5 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-violet-500/10 pointer-events-none" />
+          <div className="max-w-2xl mx-auto px-4 text-center relative">
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-white mb-4">
+              Start creating in seconds — no install required
             </h2>
-            <p className="text-zinc-500 mb-8">
-              Free WebMMD studio · Open source · No account · MMD online in one tab
+            <p className="text-zinc-400 mb-8 max-w-md mx-auto">
+              Try a demo in ~2 seconds, or upload PMX/VMD when you are ready. Free in the browser.
             </p>
-            <button
-              type="button"
-              onClick={onStart}
-              className="inline-flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-lg px-8 py-4 rounded-xl cursor-pointer transition-colors"
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <PrimaryBtn onClick={onStartDemo}>
+                <Sparkles className="w-4 h-4" />
+                Try Demo
+              </PrimaryBtn>
+              <GhostBtn onClick={onStart}>
+                Open Studio
+                <ChevronRight className="w-5 h-5" />
+              </GhostBtn>
+            </div>
+            <a
+              href={ANDROID_APK_URL}
+              download={ANDROID_APK_FILENAME}
+              className="inline-flex items-center gap-2 mt-8 text-sm text-zinc-500 hover:text-emerald-400 transition-colors"
             >
-              Try Studio — free
-              <ChevronRight className="w-5 h-5" />
-            </button>
+              <Download className="w-4 h-4" />
+              Android APK
+            </a>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-zinc-800 py-10 text-center text-xs text-zinc-600">
-        <div className="max-w-6xl mx-auto px-4 space-y-3">
-          <p>
-            <a href="https://github.com/FBNonaMe/animastage-lite" className="text-zinc-400 hover:text-cyan-400">
-              GitHub
-            </a>
-            {' · '}
-            <a href="https://animastagepro.dev/" className="text-zinc-400 hover:text-cyan-400" target="_blank" rel="noreferrer">
-              AnimaStage Pro
-            </a>
-            {' · '}
-            <span className="font-mono">animastage-lite@1.0.0</span>
-          </p>
-          <p className="max-w-md mx-auto leading-relaxed">
-            MMD models and VMD motions belong to their authors. Use only content you have rights to publish.
-          </p>
-        </div>
+      <footer className="border-t border-white/5 py-8 text-center text-xs text-zinc-600">
+        <p>
+          <a href="https://github.com/FBNonaMe/animastage-lite" className="text-zinc-400 hover:text-cyan-400">
+            GitHub
+          </a>
+          {' · '}
+          <a href="https://animastagepro.dev/" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-cyan-400">
+            Pro <ExternalLink className="w-3 h-3 inline" />
+          </a>
+        </p>
       </footer>
     </div>
   );

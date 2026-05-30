@@ -33,11 +33,26 @@ import { useClipEditor } from './hooks/useClipEditor';
 import { useEditorDocument } from './hooks/useEditorDocument';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import type { AnimationLayerDef, TimelineKeyframe, TimelineTrackId } from './types';
+import type { PoseSnapshotV1 } from './pose/poseTypes';
+import { createPoseId } from './pose/poseTypes';
+import {
+  applyPoseSnapshotToMesh,
+  capturePoseFromModel,
+  collectDynamicBoneNames,
+  poseBonesToModelBones,
+} from './pose/poseApply';
+import { addCustomPose } from './pose/poseStorage';
 import { mergeTimelineKeyframes } from './components/TimelineLogic';
 import { useCollab } from './hooks/useCollab';
 import type { CollabClipPayload } from './collab/collabSync';
 import { useIsMobileStudio } from './hooks/useMediaQuery';
 import MobileStudioBar from './components/MobileStudioBar';
+import DemoGalleryOverlay from './components/gallery/DemoGalleryOverlay';
+import { applyInstantDemoState } from './demos/applyInstantDemo';
+import { buildInstantDemoModel } from './demos/buildDemoModel';
+import { FEATURED_DEMO_ID, getDemoScene } from './demos/demoCatalog';
+import { loadDemoPack } from './demos/loadDemoScene';
+import type { InstantDemoScene } from './demos/types';
 
 // Standard Bones preset
 const DEFAULT_BONES: BoneState[] = [
@@ -100,6 +115,9 @@ export default function App() {
   const modelApiRef = useRef<MMDModelApi | null>(null);
   const glCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const invalidateSceneRef = useRef<(() => void) | null>(null);
+  const appStateRef = useRef(appState);
+  appStateRef.current = appState;
+  const loadDemoSceneRef = useRef<(demoId: string) => Promise<void>>(async () => {});
   const [highlightMaterial, setHighlightMaterial] = useState<string | null>(null);
   const clipEditor = useClipEditor();
 
@@ -109,6 +127,7 @@ export default function App() {
   const [showTimelinePanel, setShowTimelinePanel] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [openTopMenuId, setOpenTopMenuId] = useState<string | null>(null);
+  const [analyzingModel, setAnalyzingModel] = useState(false);
 
   // Viewport setup states (passed to TopMenu & Viewport)
   const [showGrid, setShowGrid] = useState(true);
@@ -124,6 +143,9 @@ export default function App() {
   });
 
   const [demoHint, setDemoHint] = useState(false);
+  const [showDemoGallery, setShowDemoGallery] = useState(false);
+  const [demoLoadingId, setDemoLoadingId] = useState<string | null>(null);
+  const [activeDemoId, setActiveDemoId] = useState<string | null>(null);
   const demoBootRef = useRef(false);
 
   useEffect(() => {
@@ -138,37 +160,41 @@ export default function App() {
     }
   }, [isMobile]);
 
-  const handleViewportFormatChange = (format: ViewportFormat) => {
-    if (format === viewportFormat) return;
-    if (format === '9:16') {
-      pre916VisualFxRef.current = appState.visualFx;
-      pre916QualityRef.current = appState.characterQuality;
-      pre916RtxRef.current = {
-        enabled: appState.rtxModeEnabled,
-        settings: appState.rtxSettings,
-      };
-      setAppState((s) => ({
-        ...s,
-        visualFx: {
-          ...s.visualFx,
-          ...CINEMATIC_VERTICAL_FX,
-          bloomEnabled: false,
-          dofEnabled: false,
-        },
-        characterQuality: portraitRecommendedQuality(s.characterQuality),
-        rtxModeEnabled: false,
-      }));
-    } else {
-      setAppState((s) => ({
-        ...s,
-        visualFx: { ...pre916VisualFxRef.current },
-        characterQuality: pre916QualityRef.current,
-        rtxModeEnabled: pre916RtxRef.current.enabled,
-        rtxSettings: pre916RtxRef.current.settings,
-      }));
-    }
-    setViewportFormat(format);
-  };
+  const handleViewportFormatChange = useCallback(
+    (format: ViewportFormat) => {
+      if (format === viewportFormat) return;
+      const s = appStateRef.current;
+      if (format === '9:16') {
+        pre916VisualFxRef.current = s.visualFx;
+        pre916QualityRef.current = s.characterQuality;
+        pre916RtxRef.current = {
+          enabled: s.rtxModeEnabled,
+          settings: s.rtxSettings,
+        };
+        setAppState((prev) => ({
+          ...prev,
+          visualFx: {
+            ...prev.visualFx,
+            ...CINEMATIC_VERTICAL_FX,
+            bloomEnabled: false,
+            dofEnabled: false,
+          },
+          characterQuality: portraitRecommendedQuality(prev.characterQuality),
+          rtxModeEnabled: false,
+        }));
+      } else {
+        setAppState((prev) => ({
+          ...prev,
+          visualFx: { ...pre916VisualFxRef.current },
+          characterQuality: pre916QualityRef.current,
+          rtxModeEnabled: pre916RtxRef.current.enabled,
+          rtxSettings: pre916RtxRef.current.settings,
+        }));
+      }
+      setViewportFormat(format);
+    },
+    [viewportFormat]
+  );
 
   const handleSceneHdr = (patch: Partial<import('./types').SceneHdrSettings>) => {
     setAppState((s) => {
@@ -236,14 +262,14 @@ export default function App() {
   });
 
   useEffect(() => {
-    const dirty = appState.models.some((m) => m.clipDirty);
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const dirty = appStateRef.current.models.some((m) => m.clipDirty);
       if (!dirty) return;
       e.preventDefault();
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [appState.models]);
+  }, []);
 
   useEditorKeyboard({
     enabled: true,
@@ -318,39 +344,7 @@ export default function App() {
   const selectedModelId = appState.selectedObjectId;
   const selectedModelKeyframes =
     appState.models.find((m) => m.id === selectedModelId)?.keyframes ?? null;
-
-  useEffect(() => {
-    if (!collab.connected || !selectedModelId || !selectedModelKeyframes) return;
-
-    const timer = window.setTimeout(() => {
-      const model = appState.models.find((m) => m.id === selectedModelId);
-      if (!model) return;
-      collabBroadcastClip({
-        modelId: model.id,
-        keyframes: model.keyframes,
-        maxFrames: appState.maxFrames,
-        currentFrame: Math.floor(playheadRef.current),
-        isPlaying: appState.isPlaying,
-      });
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [
-    collab.connected,
-    selectedModelId,
-    selectedModelKeyframes,
-    appState.maxFrames,
-    collabBroadcastClip,
-    appState.models,
-  ]);
-
-  useEffect(() => {
-    if (!collab.connected || !appState.isPlaying) return;
-    const timer = window.setInterval(() => {
-      collabBroadcastTransport(Math.floor(playheadRef.current), true);
-    }, 500);
-    return () => clearInterval(timer);
-  }, [collab.connected, appState.isPlaying, collabBroadcastTransport]);
+  const selectedKeyframeCount = selectedModelKeyframes?.length ?? 0;
 
   const handleApplyKeyframes = useCallback(
     (incoming: TimelineKeyframe[], mode: 'merge' | 'replace') => {
@@ -429,6 +423,39 @@ export default function App() {
     [appState.selectedObjectId, setAppState]
   );
 
+  useEffect(() => {
+    if (!collab.connected || !selectedModelId || selectedKeyframeCount === 0) return;
+
+    const timer = window.setTimeout(() => {
+      const state = appStateRef.current;
+      const model = state.models.find((m) => m.id === selectedModelId);
+      if (!model) return;
+      collabBroadcastClip({
+        modelId: model.id,
+        keyframes: model.keyframes,
+        maxFrames: state.maxFrames,
+        currentFrame: Math.floor(playheadRef.current),
+        isPlaying: state.isPlaying,
+      });
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [
+    collab.connected,
+    selectedModelId,
+    selectedKeyframeCount,
+    appState.maxFrames,
+    collabBroadcastClip,
+  ]);
+
+  useEffect(() => {
+    if (!collab.connected || !appState.isPlaying) return;
+    const timer = window.setInterval(() => {
+      collabBroadcastTransport(Math.floor(playheadRef.current), true);
+    }, 500);
+    return () => clearInterval(timer);
+  }, [collab.connected, appState.isPlaying, collabBroadcastTransport]);
+
   // Load standard models
   const handleLoadModel = (preset: 'miku' | 'kizuna' | 'custom') => {
     let name = 'Hatsune Miku (Append)';
@@ -458,69 +485,149 @@ export default function App() {
     }));
   };
 
-  useEffect(() => {
-    if (demoBootRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('demo') !== '1') return;
-    demoBootRef.current = true;
-    setDemoHint(true);
-    handleLoadModel('miku');
+  const revokeAllModelBlobs = useCallback(() => {
+    for (const m of appStateRef.current.models) {
+      if (m.fileMap) revokeFileMapUrls(m.fileMap);
+    }
   }, []);
 
   // Handle dynamically uploaded custom user models (via FileUploader)
-  const handleLoadCustomModel = (data: {
-    name: string;
-    blobUrl: string;
-    modelFileName?: string;
-    manager: any;
-    fileMap: Record<string, string>;
-    vmdBlobUrls?: string[];
-    vmdFileNames?: string[];
-    cameraVmdBlobUrl?: string | null;
-    cameraVmdFileName?: string | null;
-    hasCameraVmd?: boolean;
-  }) => {
-    const newId = `model_${Date.now()}`;
-    const hasVmd = (data.vmdBlobUrls?.length ?? 0) > 0;
-    const hasCameraVmd = data.hasCameraVmd ?? false;
-    const newModel: MMDModel = {
-      id: newId,
-      name: data.name,
-      type: 'custom',
-      visible: true,
-      morphs: { ...DEFAULT_MORPHS },
-      bones: JSON.parse(JSON.stringify(DEFAULT_BONES)),
-      positionX: 0,
-      positionY: 0,
-      positionZ: 0,
-      keyframes: createEmptyKeyframes(),
-      blobUrl: data.blobUrl,
-      modelFileName: data.modelFileName,
-      customManager: data.manager,
-      fileMap: data.fileMap,
-      vmdBlobUrls: data.vmdBlobUrls,
-      vmdFileNames: data.vmdFileNames,
-      hasVmdAnimation: hasVmd,
-      vmdPlaybackEnabled: hasVmd ? true : undefined,
-      activeVmdIndex: 0,
-    };
+  const handleLoadCustomModel = useCallback(
+    (data: {
+      name: string;
+      blobUrl: string;
+      modelFileName?: string;
+      manager: any;
+      fileMap: Record<string, string>;
+      vmdBlobUrls?: string[];
+      vmdFileNames?: string[];
+      cameraVmdBlobUrl?: string | null;
+      cameraVmdFileName?: string | null;
+      hasCameraVmd?: boolean;
+    }) => {
+      const newId = `model_${Date.now()}`;
+      const hasVmd = (data.vmdBlobUrls?.length ?? 0) > 0;
+      const hasCameraVmd = data.hasCameraVmd ?? false;
+      const newModel: MMDModel = {
+        id: newId,
+        name: data.name,
+        type: 'custom',
+        visible: true,
+        morphs: { ...DEFAULT_MORPHS },
+        bones: JSON.parse(JSON.stringify(DEFAULT_BONES)),
+        positionX: 0,
+        positionY: 0,
+        positionZ: 0,
+        keyframes: createEmptyKeyframes(),
+        blobUrl: data.blobUrl,
+        modelFileName: data.modelFileName,
+        customManager: data.manager,
+        fileMap: data.fileMap,
+        vmdBlobUrls: data.vmdBlobUrls,
+        vmdFileNames: data.vmdFileNames,
+        hasVmdAnimation: hasVmd,
+        vmdPlaybackEnabled: hasVmd ? true : undefined,
+        activeVmdIndex: 0,
+      };
 
-    setPlayheadFrame(0);
+      setPlayheadFrame(0);
 
-    setAppState(prev => ({
-      ...prev,
-      models: [...prev.models, newModel],
-      selectedObjectId: newId,
-      selectedBoneId: 'head',
-      isPlaying: false,
-      currentFrame: 0,
-      cameraVmdBlobUrl: hasCameraVmd ? data.cameraVmdBlobUrl ?? null : prev.cameraVmdBlobUrl,
-      cameraVmdFileName: hasCameraVmd ? data.cameraVmdFileName ?? null : prev.cameraVmdFileName,
-      hasCameraVmd: hasCameraVmd || prev.hasCameraVmd,
-      cameraMode: prev.cameraMode,
-      objects: [...prev.objects, { id: newId, name: data.name, type: 'model', visible: true }]
-    }));
-  };
+      setAppState((prev) => ({
+        ...prev,
+        models: [...prev.models, newModel],
+        selectedObjectId: newId,
+        selectedBoneId: 'head',
+        isPlaying: false,
+        currentFrame: 0,
+        cameraVmdBlobUrl: hasCameraVmd ? data.cameraVmdBlobUrl ?? null : prev.cameraVmdBlobUrl,
+        cameraVmdFileName: hasCameraVmd ? data.cameraVmdFileName ?? null : prev.cameraVmdFileName,
+        hasCameraVmd: hasCameraVmd || prev.hasCameraVmd,
+        cameraMode: prev.cameraMode,
+        objects: [...prev.objects, { id: newId, name: data.name, type: 'model', visible: true }],
+      }));
+      setActiveDemoId(null);
+    },
+    []
+  );
+
+  const handleLoadDemoScene = useCallback(
+    async (demoId: string) => {
+      const demo = getDemoScene(demoId);
+      if (!demo) return;
+
+      setDemoLoadingId(demoId);
+      setDemoHint(false);
+      revokeAllModelBlobs();
+
+      try {
+        if (demo.kind === 'pack') {
+          const result = await loadDemoPack(demo.manifestUrl);
+          if ('error' in result) {
+            console.warn('[Demo Gallery]', result.error);
+            if (demo.fallbackInstantId) {
+              await loadDemoSceneRef.current(demo.fallbackInstantId);
+            }
+            return;
+          }
+          setPlayheadFrame(0);
+          setAppState((prev) => ({
+            ...prev,
+            models: [],
+            selectedObjectId: null,
+            selectedBoneId: null,
+            objects: prev.objects.filter((o) => o.type !== 'model'),
+            isPlaying: false,
+            currentFrame: 0,
+          }));
+          handleLoadCustomModel(result);
+          setActiveDemoId(demoId);
+          setShowDemoGallery(false);
+          return;
+        }
+
+        const instant = demo as InstantDemoScene;
+        if (instant.viewportFormat && instant.viewportFormat !== viewportFormat) {
+          handleViewportFormatChange(instant.viewportFormat);
+        }
+
+        const modelId = `model_${Date.now()}`;
+        const newModel = buildInstantDemoModel(instant, modelId);
+
+        setAppState((prev) => {
+          const nonModelObjects = prev.objects.filter((o) => o.type !== 'model');
+          return applyInstantDemoState(prev, instant, modelId, newModel, nonModelObjects);
+        });
+
+        setActiveDemoId(demoId);
+        setShowDemoGallery(false);
+        if (isMobile) setShowLeftSidebar(false);
+      } finally {
+        setDemoLoadingId(null);
+      }
+    },
+    [revokeAllModelBlobs, handleLoadCustomModel, viewportFormat, handleViewportFormatChange, isMobile]
+  );
+
+  loadDemoSceneRef.current = handleLoadDemoScene;
+
+  useEffect(() => {
+    if (demoBootRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const demoParam = params.get('demo');
+    if (!demoParam) return;
+    demoBootRef.current = true;
+
+    if (demoParam === 'gallery') {
+      setShowDemoGallery(true);
+      return;
+    }
+
+    const id = demoParam === '1' ? FEATURED_DEMO_ID : demoParam;
+    if (!getDemoScene(id)) return;
+
+    setDemoHint(true);
+    void loadDemoSceneRef.current(id);
+  }, []);
 
   const handleModelAnimationLoaded = (modelId: string, frameCount: number) => {
     setPlayheadFrame(0);
@@ -582,6 +689,7 @@ export default function App() {
         objects: prev.objects.filter(obj => obj.type !== 'model')
       };
     });
+    setActiveDemoId(null);
   };
 
   // Toggle visible rules
@@ -617,6 +725,84 @@ export default function App() {
   };
 
   // Modify active facial morph sliders
+  const applyPoseToMeshInstant = (pose: PoseSnapshotV1, morphs: typeof DEFAULT_MORPHS) => {
+    const mesh = modelApiRef.current?.getMesh();
+    if (!mesh) return;
+    const merged: PoseSnapshotV1 = {
+      ...pose,
+      morphs: {
+        eyes: morphs.eyes,
+        mouth: morphs.mouth,
+        brow: morphs.brow,
+      },
+    };
+    applyPoseSnapshotToMesh(mesh, merged, {
+      skipBoneNames: collectDynamicBoneNames(mesh),
+    });
+    modelApiRef.current?.syncSkeleton();
+  };
+
+  const handleApplyPose = (pose: PoseSnapshotV1) => {
+    const modelId = appState.selectedObjectId;
+    if (!modelId) return;
+    setAppState((prev) => ({
+      ...prev,
+      isPlaying: false,
+      models: prev.models.map((m) => {
+        if (m.id !== modelId) return m;
+        return {
+          ...m,
+          morphs: { ...pose.morphs },
+          bones: poseBonesToModelBones(pose.bones, m.bones),
+          poseHold: pose,
+          activePoseId: pose.id,
+          vmdPlaybackEnabled: false,
+        };
+      }),
+    }));
+    const model = appState.models.find((m) => m.id === modelId);
+    if (model) {
+      requestAnimationFrame(() => applyPoseToMeshInstant(pose, pose.morphs));
+    }
+  };
+
+  const handleCapturePose = () => {
+    const modelId = appState.selectedObjectId;
+    const model = appState.models.find((m) => m.id === modelId);
+    if (!model) return;
+    const mesh = modelApiRef.current?.getMesh();
+    const captured = capturePoseFromModel(model, mesh, 'My pose');
+    captured.id = createPoseId();
+    addCustomPose(captured);
+    handleApplyPose(captured);
+  };
+
+  const handleReanalyzeModel = () => {
+    const modelId = appState.selectedObjectId;
+    const model = appState.models.find((m) => m.id === modelId);
+    if (!modelId || !model) return;
+    setAnalyzingModel(true);
+    const mesh = modelApiRef.current?.getMesh() ?? null;
+    void editor
+      .runModelAnalysis(modelId, mesh, {
+        fileMap: model.fileMap,
+        modelFileName: model.modelFileName,
+        force: true,
+      })
+      .finally(() => setAnalyzingModel(false));
+  };
+
+  const handleClearPoseHold = () => {
+    const modelId = appState.selectedObjectId;
+    if (!modelId) return;
+    setAppState((prev) => ({
+      ...prev,
+      models: prev.models.map((m) =>
+        m.id === modelId ? { ...m, poseHold: null, activePoseId: null } : m
+      ),
+    }));
+  };
+
   const handleModifyMorphs = (modelId: string, morphName: 'eyes' | 'mouth' | 'brow', value: number) => {
     setAppState(prev => ({
       ...prev,
@@ -757,19 +943,35 @@ export default function App() {
       {demoHint && (
         <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-cyan-950/90 border-b border-cyan-500/30 text-xs sm:text-sm text-cyan-100/90 z-50">
           <p>
-            <span className="font-semibold text-cyan-300">Demo rig loaded.</span>{' '}
-            Drop your <strong className="text-white">PMX</strong> + <strong className="text-white">VMD</strong> on the
-            viewport, or use <strong className="text-white">File → Load Miku</strong>.
+            <span className="font-semibold text-cyan-300">Demo scene loaded.</span>{' '}
+            Open <strong className="text-white">Scene → Demo Gallery</strong> for more, or drop your own{' '}
+            <strong className="text-white">PMX</strong> + <strong className="text-white">VMD</strong>.
           </p>
-          <button
-            type="button"
-            onClick={() => setDemoHint(false)}
-            className="shrink-0 text-xs font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer px-2 py-1"
-          >
-            Dismiss
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowDemoGallery(true)}
+              className="text-xs font-bold text-cyan-300 hover:text-white cursor-pointer px-2 py-1"
+            >
+              More demos
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoHint(false)}
+              className="text-xs font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer px-2 py-1"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
+      <DemoGalleryOverlay
+        open={showDemoGallery}
+        onClose={() => setShowDemoGallery(false)}
+        onLoadDemo={(id) => void handleLoadDemoScene(id)}
+        loadingDemoId={demoLoadingId}
+        activeDemoId={activeDemoId}
+      />
       {/* 1. Header Navigation Workspace Bar */}
       <TopMenu 
         physicsMode={appState.physicsMode}
@@ -894,6 +1096,15 @@ export default function App() {
             onToggleGroupSolo={handleToggleGroupSolo}
             onToggleGroupMute={handleToggleGroupMute}
             maxFrames={appState.maxFrames}
+            onApplyPose={handleApplyPose}
+            onCapturePose={handleCapturePose}
+            onClearPoseHold={handleClearPoseHold}
+            onReanalyzeModel={handleReanalyzeModel}
+            analyzingModel={analyzingModel}
+            onLoadDemo={(id) => void handleLoadDemoScene(id)}
+            demoLoadingId={demoLoadingId}
+            activeDemoId={activeDemoId}
+            onOpenDemoGallery={() => setShowDemoGallery(true)}
           />
         )}
 

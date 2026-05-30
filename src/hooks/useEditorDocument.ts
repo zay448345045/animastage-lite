@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { AppState, MMDModel, TimelineKeyframe, TimelineTrackId } from '../types';
 import { createEmptyKeyframes, mergeTimelineKeyframes } from '../components/TimelineLogic';
 import { createDefaultLayers } from '../editor/animationLayers';
 import type { useClipEditor } from './useClipEditor';
 import { buildVmdFromTimeline, downloadVmd } from '../editor/vmdExport';
+import { analyzeLoadedMesh } from '../analyzer/analyzeModel';
 import { stepPlayhead } from './useEditorKeyboard';
 
 type ClipEditor = ReturnType<typeof useClipEditor>;
@@ -26,6 +27,12 @@ export function useEditorDocument(
 ) {
   const selectedId = appState.selectedObjectId;
   const selectedModel = appState.models.find((m) => m.id === selectedId);
+
+  const appStateRef = useRef(appState);
+  appStateRef.current = appState;
+  const pmxBufferCacheRef = useRef<Map<string, ArrayBuffer>>(new Map());
+  const analysisTokenRef = useRef<string | null>(null);
+  const analysisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateModelKeyframes = useCallback(
     (modelId: string, keyframes: TimelineKeyframe[], commit = true) => {
@@ -161,13 +168,14 @@ export function useEditorDocument(
     (
       track: TimelineTrackId,
       frame: number,
-      patch: Partial<TimelineKeyframe>
+      patch: Partial<TimelineKeyframe>,
+      commit = true
     ) => {
       if (!selectedId || !selectedModel) return;
       const next = selectedModel.keyframes.map((kf) =>
         kf.track === track && kf.frame === frame ? { ...kf, ...patch } : kf
       );
-      updateModelKeyframes(selectedId, next);
+      updateModelKeyframes(selectedId, next, commit);
     },
     [selectedId, selectedModel, updateModelKeyframes]
   );
@@ -182,6 +190,58 @@ export function useEditorDocument(
     }));
   }, [selectedId, appState.timelineActiveTrack, appState.currentFrame, handlers, setAppState]);
 
+  const runModelAnalysis = useCallback(
+    async (
+      modelId: string,
+      mesh: import('three').SkinnedMesh | null,
+      opts?: {
+        fileMap?: Record<string, string>;
+        modelFileName?: string;
+        pmxBuffer?: ArrayBuffer | null;
+        force?: boolean;
+      }
+    ) => {
+      if (!mesh) return;
+
+      const token = `${modelId}:${mesh.uuid}`;
+      if (!opts?.force) {
+        if (analysisTokenRef.current === token) return;
+      } else {
+        analysisTokenRef.current = null;
+      }
+
+      try {
+        let pmxBuffer = opts?.pmxBuffer ?? pmxBufferCacheRef.current.get(modelId) ?? null;
+        if (!pmxBuffer && opts?.fileMap && opts?.modelFileName) {
+          const key = opts.modelFileName.toLowerCase();
+          const rawUrl = opts.fileMap[key] ?? opts.fileMap[opts.modelFileName];
+          const fetchUrl = rawUrl?.split('#')[0];
+          if (fetchUrl?.startsWith('blob:')) {
+            pmxBuffer = await fetch(fetchUrl).then((r) => r.arrayBuffer());
+            if (pmxBuffer) pmxBufferCacheRef.current.set(modelId, pmxBuffer);
+          }
+        }
+
+        const report = await analyzeLoadedMesh(mesh, {
+          fileMap: opts?.fileMap,
+          modelFileName: opts?.modelFileName,
+          pmxBuffer,
+        });
+
+        analysisTokenRef.current = token;
+        setAppState((prev) => ({
+          ...prev,
+          models: prev.models.map((m) =>
+            m.id === modelId ? { ...m, modelAnalysis: report } : m
+          ),
+        }));
+      } catch (err) {
+        console.warn('[Analyzer] Failed:', err);
+      }
+    },
+    [setAppState]
+  );
+
   const handlePmxMetadata = useCallback(
     (
       modelId: string,
@@ -189,7 +249,8 @@ export function useEditorDocument(
         bones: import('../types').PmxBoneInfo[];
         morphs: import('../types').PmxMorphInfo[];
         materials: import('../types').PmxMaterialInfo[];
-      }
+      },
+      mesh?: import('three').SkinnedMesh | null
     ) => {
       const defaultGroups = [
         {
@@ -211,23 +272,45 @@ export function useEditorDocument(
           solo: false,
         },
       ];
-      setAppState((prev) => ({
-        ...prev,
-        models: prev.models.map((m) =>
-          m.id === modelId
-            ? {
-                ...m,
-                pmxBones: meta.bones,
-                pmxMorphs: meta.morphs,
-                pmxMaterials: meta.materials,
-                boneGroups: m.boneGroups ?? defaultGroups,
-                animLayers: m.animLayers ?? createDefaultLayers(m.keyframes),
-              }
-            : m
-        ),
-      }));
+      setAppState((prev) => {
+        const existing = prev.models.find((m) => m.id === modelId);
+        const sameMeta =
+          existing?.pmxBones?.length === meta.bones.length &&
+          existing?.pmxMorphs?.length === meta.morphs.length &&
+          existing.pmxBones?.[0]?.name === meta.bones[0]?.name;
+        if (sameMeta && existing?.boneGroups) {
+          return prev;
+        }
+        return {
+          ...prev,
+          models: prev.models.map((m) =>
+            m.id === modelId
+              ? {
+                  ...m,
+                  pmxBones: meta.bones,
+                  pmxMorphs: meta.morphs,
+                  pmxMaterials: meta.materials,
+                  boneGroups: m.boneGroups ?? defaultGroups,
+                  animLayers: m.animLayers ?? createDefaultLayers(m.keyframes),
+                }
+              : m
+          ),
+        };
+      });
+
+      if (mesh) {
+        if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
+        analysisTimerRef.current = setTimeout(() => {
+          analysisTimerRef.current = null;
+          const model = appStateRef.current.models.find((m) => m.id === modelId);
+          void runModelAnalysis(modelId, mesh, {
+            fileMap: model?.fileMap,
+            modelFileName: model?.modelFileName,
+          });
+        }, 600);
+      }
     },
-    [setAppState]
+    [setAppState, runModelAnalysis]
   );
 
   const handleSelectPmxBone = useCallback(
@@ -253,6 +336,7 @@ export function useEditorDocument(
     handleDeleteAtPlayhead,
     handlePmxMetadata,
     handleSelectPmxBone,
+    runModelAnalysis,
     updateModelKeyframes,
     stepFrame: (d: number) => {
       const f = stepPlayhead(d, appState.maxFrames);

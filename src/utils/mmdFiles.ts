@@ -352,7 +352,7 @@ export function buildAssetIndex(fileMap: Record<string, string>): Map<string, st
   return index;
 }
 
-function lookupInFileMap(
+export function lookupInFileMap(
   lookupPath: string,
   fileMap: Record<string, string>,
   index: Map<string, string>

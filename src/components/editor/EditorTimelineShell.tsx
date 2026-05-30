@@ -21,7 +21,8 @@ interface EditorTimelineShellProps {
   onPatchKeyframe: (
     track: TimelineTrackId,
     frame: number,
-    patch: Partial<TimelineKeyframe>
+    patch: Partial<TimelineKeyframe>,
+    commit?: boolean
   ) => void;
   activeTrack: TimelineTrackId | null;
 }
@@ -103,8 +104,13 @@ export default function EditorTimelineShell(props: EditorTimelineShellProps) {
         <CurveEditorPanel
           keyframes={keyframes}
           track={track}
+          maxFrames={props.appState.maxFrames}
           currentFrame={props.appState.currentFrame}
-          onPatchKeyframe={(t, frame, patch) => props.onPatchKeyframe(t, frame, patch)}
+          onScrubFrame={props.setCurrentFrame}
+          onMoveKeyframe={props.onMoveKeyframe}
+          onPatchKeyframe={(t, frame, patch, commit) =>
+            props.onPatchKeyframe(t, frame, patch, commit)
+          }
         />
       )}
       </div>

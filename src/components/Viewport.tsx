@@ -149,7 +149,8 @@ interface SceneContentProps {
       bones: import('../types').PmxBoneInfo[];
       morphs: import('../types').PmxMorphInfo[];
       materials: import('../types').PmxMaterialInfo[];
-    }
+    },
+    mesh: import('three').SkinnedMesh
   ) => void;
 }
 
@@ -352,6 +353,7 @@ function SceneContent({
                 animLayers={model.animLayers}
                 boneGroups={model.boneGroups}
                 timelineLive={getDefaultLiveValues(model.bones, model.morphs)}
+                poseHold={model.poseHold ?? null}
                 gizmoDraggingRef={isActive ? gizmoDraggingRef : undefined}
                 rootGizmoDraggingRef={isActive ? rootGizmoDraggingRef : undefined}
                 transformMode={transformMode}
@@ -382,7 +384,7 @@ function SceneContent({
                 }
                 onPmxMetadata={
                   isActive && onPmxMetadataLoaded
-                    ? (meta) => onPmxMetadataLoaded(model.id, meta)
+                    ? (meta, skMesh) => onPmxMetadataLoaded(model.id, meta, skMesh)
                     : undefined
                 }
               />
@@ -465,7 +467,8 @@ interface ViewportProps {
       bones: import('../types').PmxBoneInfo[];
       morphs: import('../types').PmxMorphInfo[];
       materials: import('../types').PmxMaterialInfo[];
-    }
+    },
+    mesh: import('three').SkinnedMesh
   ) => void;
 }
 
