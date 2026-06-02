@@ -28,43 +28,43 @@ const SITE_URL = 'https://animastage-lite.app';
 
 /** APK hosted on GitHub Releases (>100 MB — not in git). Build: `npm run sync:android:assets` */
 const ANDROID_RELEASE = {
-  url: 'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
+  url: 'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.1/app-debug.apk',
   directUrl:
-    'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
-  releasePage: 'https://github.com/FBNonaMe/animastage-lite/releases/tag/v1.1.0FIX',
+    'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.1/app-debug.apk',
+  releasePage: 'https://github.com/FBNonaMe/animastage-lite/releases/tag/v1.1.1',
   downloadName: 'app-debug.apk',
   linkProps: { target: '_blank', rel: 'noopener noreferrer' } as const,
-  version: '1.1.0',
-  versionCode: 2,
-  buildLabel: 'Updated Jun 2, 2026',
-  sizeMb: 132.6,
-  sizeHint: '~133 MB',
+  version: '1.1.1',
+  versionCode: 3,
+  buildLabel: 'Updated Jun 2, 2026 — portrait',
+  sizeMb: 114,
+  sizeHint: '~114 MB',
   minAndroid: 'Android 6.0+ (API 23)',
-  orientation: 'Landscape only',
+  orientation: 'Portrait (vertical)',
   whatsNew: [
-    'Compact landscape UI — bottom nav, sidebar & timeline as overlays (no overlapping panels)',
+    'Portrait lock — hold phone vertically; no forced landscape rotation',
+    'Compact mobile UI — bottom nav, sidebar & timeline as overlays (no overlapping panels)',
     'Updated Studio UI — design system, modular sidebar, empty-state onboarding',
     'Stable performance HUD — frame time, CPU/GPU estimate, Smooth / Okay / Lagging',
-    'ZIP / folder import — up to 4 PMX/PMD characters, same as the browser',
   ],
   highlights: [
     'Opens straight into Studio `/app` — no marketing page on launch',
-    'Landscape phone layout — bottom bar (Menu · Panel · Play · Time · FX)',
+    'Portrait phone layout — bottom bar (Menu · Panel · Play · Time · FX)',
     'Balanced WebView quality — GPU caps tuned for phones and tablets',
     'Client-side only — PMX/VMD stay on your device, no account required',
     'Same Bullet physics, timeline, and export stack as animastage-lite.app',
   ],
   requirements: [
-    'Phone or tablet in horizontal (landscape) orientation',
+    'Phone or tablet in vertical (portrait) orientation',
     'Allow install from browser or Files app (sideload debug APK)',
     'WebGL2-capable device; 4 GB+ RAM recommended for heavy PMX',
     'Chrome-based browser engine (WebView) — best on Android 10+',
   ],
   installSteps: [
-    'Tap Download APK below (~133 MB) — served from GitHub Releases.',
+    'Tap Download APK below (~114 MB) — served from GitHub Releases.',
     'If blocked: Settings → Security → install unknown apps → allow your browser or Files.',
     'Open the downloaded APK and tap Install.',
-    'Launch AnimaStage Lite — rotate to landscape; studio opens automatically.',
+    'Launch AnimaStage Lite — studio opens automatically in portrait.',
   ],
 } as const;
 
@@ -79,7 +79,7 @@ const CORE_FEATURES = [
   { icon: Upload, title: 'Load PMX / PMD + VMD', desc: 'Drop your folder — see your character move in one step.' },
   { icon: Play, title: 'Real-time playback', desc: 'Watch dances instantly — no desktop MMD required.' },
   { icon: Video, title: 'MP4 export', desc: 'Ship Shorts or widescreen video from the same tab.' },
-  { icon: Smartphone, title: 'Android app', desc: 'v1.1.0 landscape APK — full studio on phone or tablet, direct download.' },
+  { icon: Smartphone, title: 'Android app', desc: 'v1.1.1 portrait APK — full studio on phone, direct download.' },
 ] as const;
 
 const ADVANCED_FEATURES = [
@@ -104,7 +104,7 @@ const FAQ = [
   },
   {
     q: 'Is there an Android app?',
-    a: `Yes — download v${ANDROID_RELEASE.version} (${ANDROID_RELEASE.sizeHint}, landscape) from the Android section. It opens the full MMD studio on your phone or tablet with the same PMX/VMD workflow as the browser. Debug APK for sideload; no Google Play yet.`,
+    a: `Yes — download v${ANDROID_RELEASE.version} (${ANDROID_RELEASE.sizeHint}, portrait) from the Android section. It opens the full MMD studio on your phone with the same PMX/VMD workflow as the browser. Debug APK for sideload; no Google Play yet.`,
   },
 ] as const;
 
@@ -566,7 +566,7 @@ export default function LandingPage({
               </h2>
               <p className="text-zinc-400 text-sm sm:text-base max-w-2xl mx-auto">
                 Install <strong className="text-zinc-200 font-semibold">v{ANDROID_RELEASE.version}</strong> — the same
-                editor as animastage-lite.app, packaged for landscape WebView. Free debug APK, direct download below.
+                editor as animastage-lite.app, packaged for portrait WebView. Free debug APK, direct download below.
               </p>
             </div>
 
@@ -600,7 +600,7 @@ export default function LandingPage({
                     ))}
                   </div>
                   <h3 className="font-display font-bold text-xl text-white mb-2">
-                    AnimaStage Lite — landscape studio
+                    AnimaStage Lite — portrait studio
                   </h3>
                   <p className="text-sm text-zinc-400 leading-relaxed max-w-xl">
                     No Google Play yet — download the official debug build from this page. Opens directly into the

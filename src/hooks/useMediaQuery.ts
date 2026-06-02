@@ -18,13 +18,13 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** Short viewport — typical phone landscape (~360–430px tall). */
+/** Short viewport — limited vertical space (e.g. phone landscape). */
 const COMPACT_HEIGHT_QUERY = '(max-height: 520px)';
 const NARROW_WIDTH_QUERY = '(max-width: 767px)';
 
 /**
  * Compact studio layout: sidebar/timeline as overlays, bottom nav, no desktop menu bar.
- * Native Capacitor always uses compact (landscape phones have width >768 but tiny height).
+ * Native Capacitor always uses compact (portrait = narrow width; landscape = short height).
  */
 export function useIsMobileStudio(): boolean {
   const isNative = isNativeApp();

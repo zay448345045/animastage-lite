@@ -1,5 +1,5 @@
 /**
- * Compact studio — Android landscape / short viewports.
+ * Compact studio — Android portrait / narrow viewports.
  * Applied on #mmd-workspace-main and html.compact-studio.
  */
 
@@ -38,11 +38,17 @@
   flex-shrink: 0;
 }
 
-/* Timeline panel — limited height so viewport stays usable */
+/* Timeline panel — taller in portrait, capped in short viewports */
 .compact-studio .editor-timeline-shell {
-  max-height: min(38vh, 200px);
+  max-height: min(32vh, 220px);
   min-height: 0;
   overflow: hidden;
+}
+
+@media (orientation: portrait) {
+  .compact-studio .editor-timeline-shell {
+    max-height: min(38vh, 280px);
+  }
 }
 
 /* Viewport chrome */
