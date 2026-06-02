@@ -28,10 +28,10 @@ const SITE_URL = 'https://animastage-lite.app';
 
 /** APK hosted on GitHub Releases (>100 MB — not in git). Build: `npm run sync:android:assets` */
 const ANDROID_RELEASE = {
-  url: 'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.1/app-debug.apk',
+  url: 'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
   directUrl:
-    'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.1/app-debug.apk',
-  releasePage: 'https://github.com/FBNonaMe/animastage-lite/releases/tag/v1.1.1',
+    'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
+  releasePage: 'https://github.com/FBNonaMe/animastage-lite/releases/tag/v1.1.0FIX',
   downloadName: 'app-debug.apk',
   linkProps: { target: '_blank', rel: 'noopener noreferrer' } as const,
   version: '1.1.1',
