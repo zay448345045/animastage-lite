@@ -86,7 +86,7 @@ Studio polish for creators — cleaner layout, consistent controls, and performa
 | **Stable perf HUD** | **Frame ms** primary (not noisy FPS) · rolling 60-frame average · **CPU / GPU** estimate · **Smooth / Okay / Lagging** · bottleneck label | Bottom-right viewport |
 | **Perf toasts** | “Optimizing for your device” and camera hints **auto-hide after ~2.5 s** | Top center · top-right hints |
 | **ZIP import** | Recursive archives, macOS junk skipped, clearer errors for PMX/PMD inside nested folders | Drag-drop · **File** upload |
-| **Android app** | **v1.1.0** — full studio in WebView, **landscape** lock, immersive chrome, balanced perf defaults | Landing **`#android`** · [app-debug.apk](/app-debug.apk) |
+| **Android app** | **v1.1.0** — full studio in WebView, **landscape** lock, immersive chrome, balanced perf defaults | Landing **`#android`** · [app-debug.apk](https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk) |
 
 #### Performance HUD (updated)
 
@@ -287,7 +287,7 @@ npm run indexnow:submit   # optional — ping search engines (IndexNow)
 
 ### Android app (download)
 
-Debug APK for sideload: **[app-debug.apk](/app-debug.apk)** (~133 MB) — also linked on the [landing page](https://animastage-lite.app/#android).
+Debug APK for sideload: **[app-debug.apk](https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk)** (~133 MB) — [GitHub Release v1.1.0FIX](https://github.com/FBNonaMe/animastage-lite/releases/tag/v1.1.0FIX) · also on the [landing page](https://animastage-lite.app/#android).
 
 **v1.1.0** — opens the full studio in **landscape**, immersive WebView chrome, balanced GPU defaults (same PMX/VMD workflow as the browser).
 

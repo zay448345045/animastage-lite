@@ -26,15 +26,17 @@ import ConversionBridge from './landing/ConversionBridge';
 
 const SITE_URL = 'https://animastage-lite.app';
 
-/** Shipped with `npm run sync:android:assets` → public/app-debug.apk */
+/** APK hosted on GitHub Releases (>100 MB — not in git). Build: `npm run sync:android:assets` */
 const ANDROID_RELEASE = {
-  /** Root-relative — works on `/` and after deploy from `public/` */
-  url: '/app-debug.apk',
-  directUrl: `${SITE_URL}/app-debug.apk`,
-  downloadName: 'AnimaStage-Lite-1.1.0-landscape.apk',
+  url: 'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
+  directUrl:
+    'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
+  releasePage: 'https://github.com/FBNonaMe/animastage-lite/releases/tag/v1.1.0FIX',
+  downloadName: 'app-debug.apk',
+  linkProps: { target: '_blank', rel: 'noopener noreferrer' } as const,
   version: '1.1.0',
   versionCode: 2,
-  buildLabel: 'Updated Jun 1, 2026',
+  buildLabel: 'Updated Jun 2, 2026',
   sizeMb: 132.6,
   sizeHint: '~133 MB',
   minAndroid: 'Android 6.0+ (API 23)',
@@ -59,7 +61,7 @@ const ANDROID_RELEASE = {
     'Chrome-based browser engine (WebView) — best on Android 10+',
   ],
   installSteps: [
-    'Tap Download APK below (file: app-debug.apk, ~133 MB).',
+    'Tap Download APK below (~133 MB) — served from GitHub Releases.',
     'If blocked: Settings → Security → install unknown apps → allow your browser or Files.',
     'Open the downloaded APK and tap Install.',
     'Launch AnimaStage Lite — rotate to landscape; studio opens automatically.',
@@ -216,7 +218,7 @@ export default function LandingPage({
           <div className="flex items-center gap-2 shrink-0 md:hidden">
             <a
               href={ANDROID_RELEASE.url}
-              download={ANDROID_RELEASE.downloadName}
+              {...ANDROID_RELEASE.linkProps}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-200 font-semibold text-xs px-3 py-2"
               title={`Download Android v${ANDROID_RELEASE.version}`}
             >
@@ -270,7 +272,7 @@ export default function LandingPage({
                   </GhostBtn>
                   <a
                     href={ANDROID_RELEASE.url}
-                    download={ANDROID_RELEASE.downloadName}
+                    {...ANDROID_RELEASE.linkProps}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/30 hover:bg-emerald-900/40 hover:border-emerald-400/50 text-emerald-100 font-semibold text-sm sm:text-base px-6 py-3.5 transition-all"
                   >
                     <Download className="w-4 h-4" />
@@ -609,7 +611,7 @@ export default function LandingPage({
                 <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto">
                   <a
                     href={ANDROID_RELEASE.url}
-                    download={ANDROID_RELEASE.downloadName}
+                    {...ANDROID_RELEASE.linkProps}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-zinc-950 font-bold text-sm sm:text-base px-6 py-3.5 shadow-lg shadow-emerald-500/25 transition-all"
                   >
                     <Download className="w-5 h-5" />
@@ -617,6 +619,7 @@ export default function LandingPage({
                   </a>
                   <a
                     href={ANDROID_RELEASE.url}
+                    {...ANDROID_RELEASE.linkProps}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-950/20 hover:bg-emerald-900/30 text-emerald-200/90 font-semibold text-xs px-4 py-2.5 transition-all"
                   >
                     Open direct link
@@ -663,7 +666,11 @@ export default function LandingPage({
                 File: <code className="text-zinc-400">{ANDROID_RELEASE.downloadName}</code>
                 {' · '}
                 URL:{' '}
-                <a href={ANDROID_RELEASE.url} className="text-emerald-400/90 hover:text-emerald-300">
+                <a
+                  href={ANDROID_RELEASE.url}
+                  {...ANDROID_RELEASE.linkProps}
+                  className="text-emerald-400/90 hover:text-emerald-300"
+                >
                   {ANDROID_RELEASE.directUrl}
                 </a>
               </p>
@@ -726,7 +733,7 @@ export default function LandingPage({
             </div>
             <a
               href={ANDROID_RELEASE.url}
-              download={ANDROID_RELEASE.downloadName}
+              {...ANDROID_RELEASE.linkProps}
               className="inline-flex items-center gap-2 mt-8 text-sm font-semibold text-emerald-400/90 hover:text-emerald-300 transition-colors"
             >
               <Download className="w-4 h-4" />
