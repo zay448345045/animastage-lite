@@ -16,7 +16,13 @@ import {
   DEFAULT_MMD_LITE_CONFIG,
   MmdLiteConfig,
 } from './types';
-import { revokeFileMapUrls } from './utils/mmdFiles';
+import { revokeFileMapUrls, type ProcessedMMDFiles } from './utils/mmdFiles';
+import {
+  canAddSceneCharacter,
+  getNextSpawnPosition,
+  MAX_SCENE_CHARACTERS,
+  patchStateForMultiCharacterLoad,
+} from './scene';
 import { playheadRef, MMD_FPS, setPlayheadFrame } from './utils/playhead';
 import { createEmptyKeyframes } from './components/TimelineLogic';
 import { createEmptyCameraKeyframes } from './components/CameraLogic';
@@ -53,6 +59,27 @@ import { buildInstantDemoModel } from './demos/buildDemoModel';
 import { FEATURED_DEMO_ID, getDemoScene } from './demos/demoCatalog';
 import { loadDemoPack } from './demos/loadDemoScene';
 import type { InstantDemoScene } from './demos/types';
+import StudioFlowBar from './components/flow/StudioFlowBar';
+import { useProductLayer } from './product/hooks/useProductLayer';
+import {
+  ResultFirstBar,
+  shouldAutoLoadDemo,
+  markResultFirstDone,
+} from './product/onboarding';
+import TemplatePicker from './product/ui/TemplatePicker';
+import { shouldShowTimeline, isBeginnerMode } from './product/ui/beginnerMode';
+import { consumeForkScene, hasForkParam } from './product/share/fork';
+import ViewerForkBar from './product/ux/ViewerForkBar';
+import ProductShortsFlow, { type ProductShortsFlowHandle } from './product/ux/ProductShortsFlow';
+import ShortsSetupDialog from './product/ux/ShortsSetupDialog';
+import type { AnimaStageScene } from './product/scene/types';
+import { isNativeApp } from './utils/platform';
+import { nativeStudioStatePatch } from './native/nativeStudioBootstrap';
+
+export interface AppProps {
+  mode?: 'editor' | 'viewer';
+  initialProject?: AnimaStageScene | null;
+}
 
 // Standard Bones preset
 const DEFAULT_BONES: BoneState[] = [
@@ -71,16 +98,20 @@ const DEFAULT_MORPHS: MorphState = {
   brow: 0,
 };
 
-export default function App() {
+export default function App({ mode = 'editor', initialProject = null }: AppProps) {
+  const isViewer = mode === 'viewer';
+
   useEffect(() => {
-    document.title = 'MMD Studio — Edit PMX & VMD Online | AnimaStage Lite';
+    document.title = isViewer
+      ? 'AnimaStage Viewer — Watch MMD Scene'
+      : 'MMD Studio — Edit PMX & VMD Online | AnimaStage Lite';
     return () => {
       document.title = 'MMD Online — Run PMX & VMD in Browser | AnimaStage Lite';
     };
-  }, []);
+  }, [isViewer]);
 
   // App primary state
-  const [appState, setAppState] = useState<AppState>({
+  const [appState, setAppState] = useState<AppState>(() => ({
     objects: [
       { id: 'camera_main', name: 'Main Camera [Orbit]', type: 'camera', visible: true },
       { id: 'light_directional', name: 'Directional Light [Sun]', type: 'light', visible: true },
@@ -97,6 +128,7 @@ export default function App() {
     timelineActiveTrack: null,
     cameraMode: 'free',
     cameraKeyframes: createEmptyCameraKeyframes(),
+    cameraOrbitAnchor: [0, 10, 0],
     cameraVmdBlobUrl: null,
     cameraVmdFileName: null,
     hasCameraVmd: false,
@@ -108,7 +140,8 @@ export default function App() {
     renderTier: 'lite',
     cameraStudio: { ...DEFAULT_CAMERA_STUDIO },
     sceneHdr: { blobUrl: null, fileName: null, intensity: 1, showBackground: false },
-  });
+    ...(isNativeApp() ? nativeStudioStatePatch() : {}),
+  }));
 
   const captureCameraRef = useRef<(() => CameraSnapshot | null) | null>(null);
   const flyToCameraRef = useRef<((snapshot: CameraSnapshot) => void) | null>(null);
@@ -147,18 +180,47 @@ export default function App() {
   const [demoLoadingId, setDemoLoadingId] = useState<string | null>(null);
   const [activeDemoId, setActiveDemoId] = useState<string | null>(null);
   const demoBootRef = useRef(false);
+  const projectBootRef = useRef(false);
+  const clearSceneRef = useRef<() => void>(() => {});
+  const projectFileInputRef = useRef<HTMLInputElement>(null);
+  const restoreSceneRef = useRef<(scene: AnimaStageScene, viewerSafe: boolean) => Promise<void>>(
+    async () => {}
+  );
+  const dismissOnboardingRef = useRef<() => void>(() => {});
+  const loadProjectFileRef = useRef<(raw: string) => void>(() => {});
+  const setPlayingRef = useRef<(playing: boolean) => void>(() => {});
+  const showResultFirstRef = useRef<() => void>(() => {});
+  const applyTemplateRef = useRef<(id: string) => void>(() => {});
+  const runAutoBeautifyRef = useRef<() => void>(() => {});
+  const applyAssetOptimizationsRef = useRef<
+    (modelId: string, report: import('./analyzer/types').ModelAnalysisReport, fileName?: string) => void
+  >(() => {});
+  const assetAnalysisSigRef = useRef('');
+  const beautifyModelsCountRef = useRef(0);
+  const resultFirstShownRef = useRef(false);
+  const shortsFlowRef = useRef<ProductShortsFlowHandle | null>(null);
+  const handleShareSceneRef = useRef<() => void | Promise<void>>(async () => {});
+
+  useEffect(() => {
+    if (!isViewer) return;
+    setShowLeftSidebar(false);
+    setShowTimelinePanel(false);
+    setShowGrid(false);
+    setShowBones(false);
+  }, [isViewer]);
 
   useEffect(() => {
     if (isMobile) {
       setShowLeftSidebar(false);
       setShowTimelinePanel(false);
-    } else {
-      setShowLeftSidebar(true);
-      setShowTimelinePanel(true);
-      setMobileNavOpen(false);
-      setOpenTopMenuId(null);
+      return;
     }
-  }, [isMobile]);
+    if (isViewer) return;
+    setShowLeftSidebar(true);
+    setShowTimelinePanel(true);
+    setMobileNavOpen(false);
+    setOpenTopMenuId(null);
+  }, [isMobile, isViewer]);
 
   const handleViewportFormatChange = useCallback(
     (format: ViewportFormat) => {
@@ -253,6 +315,36 @@ export default function App() {
     setCameraMode,
     setVisualFx,
   } = useTimeline({ appState, setAppState, captureCameraRef });
+  setPlayingRef.current = handleSetIsPlaying;
+
+  const product = useProductLayer({
+    isViewer,
+    appState,
+    setAppState,
+    viewportFormat,
+    onViewportFormatChange: handleViewportFormatChange,
+    activeDemoId,
+    onClearScene: () => clearSceneRef.current(),
+    loadDemo: (id) => loadDemoSceneRef.current(id),
+    applyTemplate: handleApplyTemplate,
+    setPlaying: handleSetIsPlaying,
+    setCameraMode,
+    flyToCamera: (snapshot) => flyToCameraRef.current?.(snapshot),
+    onShortGenerated: () => shortsFlowRef.current?.enterPreview(),
+  });
+  handleShareSceneRef.current = () => product.handleShareScene();
+  restoreSceneRef.current = product.restoreSceneWithDemo;
+  dismissOnboardingRef.current = product.dismissOnboarding;
+  loadProjectFileRef.current = product.handleLoadProjectFile;
+  showResultFirstRef.current = product.showResultFirstBar;
+  applyTemplateRef.current = (id) => void product.handleApplySceneTemplate(id);
+  runAutoBeautifyRef.current = product.runAutoBeautify;
+  applyAssetOptimizationsRef.current = product.applyAssetOptimizations;
+
+  useEffect(() => {
+    if (isViewer || appState.models.length === 0) return;
+    dismissOnboardingRef.current();
+  }, [appState.models.length, isViewer]);
 
   const editor = useEditorDocument(appState, setAppState, clipEditor, {
     setCurrentFrame: handleSetCurrentFrame,
@@ -272,7 +364,7 @@ export default function App() {
   }, []);
 
   useEditorKeyboard({
-    enabled: true,
+    enabled: !isViewer,
     maxFrames: appState.maxFrames,
     onPlayPause: () => handleSetIsPlaying(!appState.isPlaying),
     onStepFrame: editor.stepFrame,
@@ -491,60 +583,83 @@ export default function App() {
     }
   }, []);
 
-  // Handle dynamically uploaded custom user models (via FileUploader)
+  // Custom uploads (folder / zip / drop) — supports multiple .pmx/.pmd in one bundle.
   const handleLoadCustomModel = useCallback(
-    (data: {
-      name: string;
-      blobUrl: string;
-      modelFileName?: string;
-      manager: any;
-      fileMap: Record<string, string>;
-      vmdBlobUrls?: string[];
-      vmdFileNames?: string[];
-      cameraVmdBlobUrl?: string | null;
-      cameraVmdFileName?: string | null;
-      hasCameraVmd?: boolean;
-    }) => {
-      const newId = `model_${Date.now()}`;
-      const hasVmd = (data.vmdBlobUrls?.length ?? 0) > 0;
-      const hasCameraVmd = data.hasCameraVmd ?? false;
-      const newModel: MMDModel = {
-        id: newId,
-        name: data.name,
-        type: 'custom',
-        visible: true,
-        morphs: { ...DEFAULT_MORPHS },
-        bones: JSON.parse(JSON.stringify(DEFAULT_BONES)),
-        positionX: 0,
-        positionY: 0,
-        positionZ: 0,
-        keyframes: createEmptyKeyframes(),
-        blobUrl: data.blobUrl,
-        modelFileName: data.modelFileName,
-        customManager: data.manager,
-        fileMap: data.fileMap,
-        vmdBlobUrls: data.vmdBlobUrls,
-        vmdFileNames: data.vmdFileNames,
-        hasVmdAnimation: hasVmd,
-        vmdPlaybackEnabled: hasVmd ? true : undefined,
-        activeVmdIndex: 0,
-      };
+    (payload: ProcessedMMDFiles | ProcessedMMDFiles[]) => {
+      const items = Array.isArray(payload) ? payload : [payload];
+      if (items.length === 0) return;
 
       setPlayheadFrame(0);
 
-      setAppState((prev) => ({
-        ...prev,
-        models: [...prev.models, newModel],
-        selectedObjectId: newId,
-        selectedBoneId: 'head',
-        isPlaying: false,
-        currentFrame: 0,
-        cameraVmdBlobUrl: hasCameraVmd ? data.cameraVmdBlobUrl ?? null : prev.cameraVmdBlobUrl,
-        cameraVmdFileName: hasCameraVmd ? data.cameraVmdFileName ?? null : prev.cameraVmdFileName,
-        hasCameraVmd: hasCameraVmd || prev.hasCameraVmd,
-        cameraMode: prev.cameraMode,
-        objects: [...prev.objects, { id: newId, name: data.name, type: 'model', visible: true }],
-      }));
+      setAppState((prev) => {
+        const multiPatch = patchStateForMultiCharacterLoad(prev);
+        const added: MMDModel[] = [];
+        const addedObjects: AppState['objects'] = [];
+        let cameraVmdBlobUrl: string | null = prev.cameraVmdBlobUrl;
+        let cameraVmdFileName: string | null = prev.cameraVmdFileName;
+        let hasCameraVmd: boolean = prev.hasCameraVmd;
+
+        for (let i = 0; i < items.length; i++) {
+          if (!canAddSceneCharacter(prev.models.length + added.length)) break;
+
+          const data = items[i]!;
+          const spawn = getNextSpawnPosition([...prev.models, ...added]);
+          const newId = `model_${Date.now()}_${i}`;
+          const hasVmd = (data.vmdBlobUrls?.length ?? 0) > 0;
+          const modelHasCameraVmd = data.hasCameraVmd ?? false;
+
+          added.push({
+            id: newId,
+            name: data.name,
+            type: 'custom',
+            visible: true,
+            morphs: { ...DEFAULT_MORPHS },
+            bones: JSON.parse(JSON.stringify(DEFAULT_BONES)),
+            positionX: spawn.x,
+            positionY: spawn.y,
+            positionZ: spawn.z,
+            keyframes: createEmptyKeyframes(),
+            blobUrl: data.blobUrl,
+            modelFileName: data.modelFileName,
+            customManager: data.manager,
+            fileMap: data.fileMap,
+            vmdBlobUrls: data.vmdBlobUrls,
+            vmdFileNames: data.vmdFileNames,
+            hasVmdAnimation: hasVmd,
+            vmdPlaybackEnabled: hasVmd ? true : undefined,
+            activeVmdIndex: 0,
+          });
+
+          addedObjects.push({ id: newId, name: data.name, type: 'model', visible: true });
+
+          if (modelHasCameraVmd) {
+            cameraVmdBlobUrl = data.cameraVmdBlobUrl ?? null;
+            cameraVmdFileName = data.cameraVmdFileName ?? null;
+            hasCameraVmd = true;
+          }
+        }
+
+        if (added.length === 0) {
+          window.alert(`Maximum ${MAX_SCENE_CHARACTERS} characters in the scene.`);
+          return prev;
+        }
+
+        const last = added[added.length - 1]!;
+
+        return {
+          ...prev,
+          ...multiPatch,
+          models: [...prev.models, ...added],
+          selectedObjectId: last.id,
+          selectedBoneId: 'head',
+          isPlaying: false,
+          currentFrame: 0,
+          cameraVmdBlobUrl,
+          cameraVmdFileName,
+          hasCameraVmd,
+          objects: [...prev.objects, ...addedObjects],
+        };
+      });
       setActiveDemoId(null);
     },
     []
@@ -611,23 +726,86 @@ export default function App() {
   loadDemoSceneRef.current = handleLoadDemoScene;
 
   useEffect(() => {
-    if (demoBootRef.current) return;
+    if (!initialProject || projectBootRef.current) return;
+    projectBootRef.current = true;
+    void restoreSceneRef.current(initialProject, isViewer);
+  }, [initialProject, isViewer]);
+
+  useEffect(() => {
+    if (isViewer || initialProject) return;
+    if (!hasForkParam(window.location.search)) return;
+    if (projectBootRef.current) return;
+    const forked = consumeForkScene();
+    if (!forked) return;
+    projectBootRef.current = true;
+    demoBootRef.current = true;
+    void restoreSceneRef.current(forked, false).then(() => {
+      setPlayingRef.current(true);
+      showResultFirstRef.current();
+    });
+  }, [isViewer, initialProject]);
+
+  const modelAnalysisSig = React.useMemo(
+    () =>
+      appState.models
+        .map((m) => `${m.id}:${m.modelAnalysis?.analyzedAt ?? 0}`)
+        .join('|'),
+    [appState.models]
+  );
+
+  useEffect(() => {
+    if (isViewer || appState.models.length === 0) return;
+    if (beautifyModelsCountRef.current === appState.models.length) return;
+    beautifyModelsCountRef.current = appState.models.length;
+    const timer = window.setTimeout(() => runAutoBeautifyRef.current(), 150);
+    return () => window.clearTimeout(timer);
+  }, [appState.models.length, isViewer]);
+
+  useEffect(() => {
+    if (isViewer || !modelAnalysisSig) return;
+    if (modelAnalysisSig === assetAnalysisSigRef.current) return;
+    assetAnalysisSigRef.current = modelAnalysisSig;
+    for (const m of appStateRef.current.models) {
+      if (m.modelAnalysis) {
+        applyAssetOptimizationsRef.current(m.id, m.modelAnalysis, m.modelFileName);
+      }
+    }
+  }, [modelAnalysisSig, isViewer]);
+
+  useEffect(() => {
+    if (demoBootRef.current || isViewer || initialProject) return;
+
     const params = new URLSearchParams(window.location.search);
     const demoParam = params.get('demo');
-    if (!demoParam) return;
-    demoBootRef.current = true;
 
-    if (demoParam === 'gallery') {
-      setShowDemoGallery(true);
+    if (demoParam) {
+      demoBootRef.current = true;
+      if (demoParam === 'gallery') {
+        setShowDemoGallery(true);
+        return;
+      }
+      const id = demoParam === '1' ? FEATURED_DEMO_ID : demoParam;
+      if (!getDemoScene(id)) return;
+      setDemoHint(true);
+      void loadDemoSceneRef.current(id);
       return;
     }
 
-    const id = demoParam === '1' ? FEATURED_DEMO_ID : demoParam;
-    if (!getDemoScene(id)) return;
+    if (!shouldAutoLoadDemo(isViewer)) return;
 
-    setDemoHint(true);
-    void loadDemoSceneRef.current(id);
-  }, []);
+    demoBootRef.current = true;
+    markResultFirstDone();
+    dismissOnboardingRef.current();
+    void loadDemoSceneRef.current(FEATURED_DEMO_ID).then(() => setPlayingRef.current(true));
+  }, [isViewer, initialProject]);
+
+  useEffect(() => {
+    if (isViewer || resultFirstShownRef.current) return;
+    if (appState.models.length > 0 && appState.isPlaying) {
+      resultFirstShownRef.current = true;
+      showResultFirstRef.current();
+    }
+  }, [appState.models.length, appState.isPlaying, isViewer]);
 
   const handleModelAnimationLoaded = (modelId: string, frameCount: number) => {
     setPlayheadFrame(0);
@@ -636,17 +814,20 @@ export default function App() {
       if (!model?.hasVmdAnimation || model.vmdPlaybackEnabled === false) return prev;
 
       const maxFrames = Math.max(10, frameCount);
-      const isSelected = prev.selectedObjectId === modelId;
-
-      if (!isSelected) {
-        return { ...prev, maxFrames: Math.max(prev.maxFrames, maxFrames) };
-      }
+      const vmdReadyCount = prev.models.filter(
+        (m) =>
+          m.visible &&
+          m.hasVmdAnimation &&
+          m.vmdPlaybackEnabled !== false &&
+          (m.vmdBlobUrls?.length ?? 0) > 0
+      ).length;
 
       return {
         ...prev,
-        maxFrames,
+        maxFrames: Math.max(prev.maxFrames, maxFrames),
         currentFrame: 0,
-        isPlaying: true,
+        // Duo: start playback when any character gets motion (not only the selected one).
+        isPlaying: vmdReadyCount >= 1 ? true : prev.isPlaying,
       };
     });
   };
@@ -691,6 +872,19 @@ export default function App() {
     });
     setActiveDemoId(null);
   };
+  clearSceneRef.current = handleClearScene;
+
+  const onProjectFileSelected = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => loadProjectFileRef.current(String(reader.result));
+      reader.readAsText(file);
+    },
+    []
+  );
 
   // Toggle visible rules
   const handleToggleVisibility = (id: string, type: 'model' | 'other') => {
@@ -939,8 +1133,30 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#121418] font-sans cursor-default overflow-hidden text-zinc-100" id="mmd-workspace-main">
-      {demoHint && (
+    <div
+      className="flex flex-col h-screen w-screen font-sans cursor-default overflow-hidden text-[var(--color-text-main)]"
+      style={{ background: 'var(--color-bg)' }}
+      id="mmd-workspace-main"
+    >
+      <input
+        ref={projectFileInputRef}
+        type="file"
+        accept=".animastage,.json,application/json"
+        className="hidden"
+        onChange={onProjectFileSelected}
+      />
+      {product.toast && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-lg bg-zinc-900/95 border border-cyan-500/30 text-xs font-semibold text-cyan-100 shadow-lg pointer-events-none">
+          {product.toast}
+        </div>
+      )}
+      {!isViewer && isBeginnerMode(product.uiMode) && (
+        <TemplatePicker
+          beginnerMode
+          onApplyTemplate={(id) => applyTemplateRef.current(id)}
+        />
+      )}
+      {!isViewer && demoHint && (
         <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-cyan-950/90 border-b border-cyan-500/30 text-xs sm:text-sm text-cyan-100/90 z-50">
           <p>
             <span className="font-semibold text-cyan-300">Demo scene loaded.</span>{' '}
@@ -965,6 +1181,22 @@ export default function App() {
           </div>
         </div>
       )}
+      {!isViewer && (
+        <StudioFlowBar
+          uiMode={product.uiMode}
+          onUiModeChange={product.handleUiModeChange}
+          onSaveProject={product.handleSaveProject}
+          onLoadProject={product.handleLoadProject}
+          onLoadProjectFile={() => projectFileInputRef.current?.click()}
+          onShareScene={() => void product.handleShareScene()}
+          onCreateShort={product.openShortsSetup}
+          hasSavedProject={product.hasSaved}
+          qualityMode={product.qualityMode}
+          onQualityModeChange={product.handleQualityModeChange}
+          shareBusy={product.shareBusy}
+        />
+      )}
+      {!isViewer && (
       <DemoGalleryOverlay
         open={showDemoGallery}
         onClose={() => setShowDemoGallery(false)}
@@ -972,7 +1204,8 @@ export default function App() {
         loadingDemoId={demoLoadingId}
         activeDemoId={activeDemoId}
       />
-      {/* 1. Header Navigation Workspace Bar */}
+      )}
+      {!isViewer && !isBeginnerMode(product.uiMode) && (
       <TopMenu 
         physicsMode={appState.physicsMode}
         setPhysicsMode={(mode) => setAppState(prev => ({ ...prev, physicsMode: mode }))}
@@ -1041,6 +1274,23 @@ export default function App() {
         openMenuId={openTopMenuId}
         onOpenMenuIdChange={setOpenTopMenuId}
       />
+      )}
+
+      {isViewer && initialProject && (
+        <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-[#0a0b0e] border-b border-zinc-800/80">
+          <div>
+            <p className="text-sm font-bold text-zinc-100">{initialProject.name}</p>
+            <p className="text-[10px] text-zinc-500">Viewer · autoplay · read-only</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => product.handleForkToEditor(initialProject)}
+            className="text-xs font-bold text-cyan-400 hover:text-cyan-300 px-3 py-1.5 rounded border border-cyan-500/30 cursor-pointer"
+          >
+            Edit this
+          </button>
+        </div>
+      )}
 
       {/* 2. Middle section (Sidebar + Viewport) */}
       <div className="flex-1 flex overflow-hidden relative min-h-0">
@@ -1053,7 +1303,7 @@ export default function App() {
           />
         )}
 
-        {!isMobile && (
+        {!isViewer && !isMobile && (
           <button
             type="button"
             onClick={() => setShowLeftSidebar(!showLeftSidebar)}
@@ -1064,12 +1314,21 @@ export default function App() {
           </button>
         )}
 
-        {showLeftSidebar && (
+        {!isViewer && showLeftSidebar && (
           <Sidebar
+            beginnerMode={isBeginnerMode(product.uiMode)}
             isMobile={isMobile}
             onClose={() => setShowLeftSidebar(false)}
             appState={appState}
-            onSelectModel={(id) => setAppState(prev => ({ ...prev, selectedObjectId: id }))}
+            sceneGraph={product.sceneGraph}
+            lockedObjectIds={product.lockedObjectIds}
+            onSceneGraphToggleVisibility={product.handleSceneGraphToggleVisibility}
+            onSceneGraphToggleLock={product.handleSceneGraphToggleLock}
+            onSceneGraphCreateGroup={product.handleSceneGraphCreateGroup}
+            onSelectModel={(id) => {
+              if (product.lockedObjectIds.has(id)) return;
+              setAppState(prev => ({ ...prev, selectedObjectId: id }));
+            }}
             onSelectBone={(id) => setAppState(prev => ({ ...prev, selectedBoneId: id }))}
             onToggleVisibility={handleToggleVisibility}
             onDeleteModel={handleDeleteModel}
@@ -1129,7 +1388,7 @@ export default function App() {
             onSelectBone={(id) => setAppState(prev => ({ ...prev, selectedBoneId: id }))}
             onBoneTransform={handleBoneTransform}
             onModelMove={handleModelMove}
-            onLoadCustomModel={handleLoadCustomModel}
+            onLoadCustomModel={isViewer ? undefined : handleLoadCustomModel}
             onModelAnimationLoaded={handleModelAnimationLoaded}
             captureCameraRef={captureCameraRef}
             flyToCameraRef={flyToCameraRef}
@@ -1137,6 +1396,12 @@ export default function App() {
             sceneHdr={appState.sceneHdr}
             onHdrFileDrop={handleHdrFileDrop}
             onSetCameraMode={setCameraMode}
+            onPatchCameraStudio={(patch) =>
+              setAppState((prev) => ({
+                ...prev,
+                cameraStudio: { ...prev.cameraStudio, ...patch },
+              }))
+            }
             isRecordingVideo={videoRecorder.isRecording}
             onRecordingTick={videoRecorder.tickLiveRecord}
             onGlCanvasReady={(canvas) => {
@@ -1147,7 +1412,63 @@ export default function App() {
             }}
             highlightMaterialName={highlightMaterial}
             onPmxMetadataLoaded={editor.handlePmxMetadata}
+            onTryDemo={
+              isViewer
+                ? undefined
+                : () => {
+                    product.dismissOnboarding();
+                    void handleLoadDemoScene(FEATURED_DEMO_ID);
+                  }
+            }
           />
+
+          {!isViewer && (
+            <ResultFirstBar
+              visible={product.showResultFirst && appState.models.length > 0}
+              onEdit={() => {
+                product.dismissResultFirst();
+                product.handleUiModeChange('pro');
+                setShowLeftSidebar(true);
+              }}
+              onGenerateShort={product.openShortsSetup}
+            />
+          )}
+          {!isViewer && (
+            <ShortsSetupDialog
+              open={product.shortsSetupOpen}
+              models={appState.models.map((m) => ({
+                id: m.id,
+                name: m.name,
+                vmdFileNames: m.vmdFileNames ?? [],
+                activeVmdIndex: m.activeVmdIndex ?? 0,
+              }))}
+              durationSec={product.shortsDurationSec}
+              busy={product.shortsGenerating}
+              onDurationChange={product.setShortsDurationSec}
+              onSelectVmd={product.setModelActiveVmdIndex}
+              onAddVmdFiles={(modelId, files) => {
+                void product.appendModelVmdFiles(modelId, files);
+              }}
+              onGenerate={product.confirmCreateShort}
+              onClose={product.closeShortsSetup}
+            />
+          )}
+          {!isViewer && (
+            <ProductShortsFlow
+              ref={shortsFlowRef}
+              durationSec={product.shortsDurationSec}
+              manualCameraLock={product.manualCameraLock}
+              onShare={() => handleShareSceneRef.current()}
+              onExportVideo={handleRenderMp4}
+              onAutoFrame={product.frameShortCamera}
+              onToggleManualCamera={product.toggleManualCameraLock}
+            />
+          )}
+          {isViewer && initialProject && (
+            <ViewerForkBar
+              onEditThis={() => product.handleForkToEditor(initialProject)}
+            />
+          )}
 
           <RecordingHud
             visible={videoRecorder.isRecording}
@@ -1157,7 +1478,7 @@ export default function App() {
           />
 
           {/* Collapsible helper for horizontal timeline */}
-          {showTimelinePanel && (
+          {!isViewer && shouldShowTimeline(product.uiMode, showTimelinePanel) && (
             <EditorTimelineShell
               appState={appState}
               setCurrentFrame={handleSetCurrentFrame}
@@ -1180,7 +1501,7 @@ export default function App() {
           )}
 
           {/* Desktop: toggle timeline */}
-          {!isMobile && (
+          {!isViewer && !isMobile && (
             <button
               type="button"
               onClick={() => setShowTimelinePanel(!showTimelinePanel)}
@@ -1195,7 +1516,7 @@ export default function App() {
 
       </div>
 
-      {isMobile && (
+      {!isViewer && isMobile && (
         <MobileStudioBar
           isPlaying={appState.isPlaying}
           panelOpen={showLeftSidebar}

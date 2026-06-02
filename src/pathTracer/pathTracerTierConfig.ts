@@ -59,10 +59,10 @@ export const PATH_TRACER_TIER_CONFIG: Record<RenderTier, PathTracerTierConfig> =
     enableBloom: false,
     enableDenoise: false,
     denoiseMaxRadius: 0,
-    previewEnabled: false,
+    previewEnabled: true,
     sceneUploadIntervalFrames: 20,
-    previewIntervalMs: 900,
-    previewMaxSamples: 5,
+    previewIntervalMs: 120,
+    previewMaxSamples: 24,
     skipAlphaMaterials: true,
     sunIntensityScale: 0.28,
     exposure: 0.78,
@@ -72,4 +72,38 @@ export const PATH_TRACER_TIER_CONFIG: Record<RenderTier, PathTracerTierConfig> =
 
 export function getPathTracerTierConfig(tier: RenderTier): PathTracerTierConfig {
   return PATH_TRACER_TIER_CONFIG[tier] ?? PATH_TRACER_TIER_CONFIG.lite;
+}
+
+/**
+ * Path Tracer Lab — conservative VRAM (stable with PMX import + WebGL viewport).
+ * Governor may raise tris/res slightly when FPS allows.
+ */
+export const PATH_TRACER_LAB_CONFIG: PathTracerTierConfig = {
+  maxTriangles: 8_000,
+  maxTextures: 10,
+  textureSize: 128,
+  resolutionScale: 0.22,
+  maxInternalWidth: 640,
+  maxInternalHeight: 360,
+  maxBounces: 4,
+  videoSamplesPerFrame: 1,
+  enableBloom: false,
+  enableDenoise: true,
+  denoiseMaxRadius: 2,
+  previewEnabled: true,
+  sceneUploadIntervalFrames: 45,
+  previewIntervalMs: 0,
+  previewMaxSamples: 512,
+  skipAlphaMaterials: true,
+  sunIntensityScale: 0.3,
+  exposure: 0.85,
+  enableNEE: false,
+};
+
+export function resolvePathTracerTierConfig(
+  tier: RenderTier,
+  labWithScene: boolean
+): PathTracerTierConfig {
+  if (labWithScene) return PATH_TRACER_LAB_CONFIG;
+  return getPathTracerTierConfig(tier);
 }

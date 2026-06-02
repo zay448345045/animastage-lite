@@ -66,7 +66,7 @@ function toStandardMaterial(
 
 /**
  * Replaces harsh toon shading with MeshStandardMaterial for a less cartoon look.
- * Safe to call multiple times — skips already-enhanced materials.
+ * Safe to call multiple times — recalculates when viewport format changes.
  */
 export function enhanceMmdMaterials(
   root: THREE.Object3D,
@@ -84,15 +84,25 @@ export function enhanceMmdMaterials(
 
     const next = materials.map((material) => {
       if (!material) return material;
-      if (material instanceof THREE.MeshStandardMaterial && material.userData.mmdEnhanced) {
+      
+      // Recalculate if viewport format changed
+      const lastViewport = (material as any).userData?.mmdEnhancedViewport;
+      const isStandardAndEnhanced = 
+        material instanceof THREE.MeshStandardMaterial && 
+        material.userData.mmdEnhanced &&
+        lastViewport === viewportFormat;
+      
+      if (isStandardAndEnhanced) {
         return material;
       }
+      
       if (!(material instanceof THREE.MeshToonMaterial)) {
         return material;
       }
 
       const std = toStandardMaterial(material, meshName);
       std.userData.mmdEnhanced = true;
+      std.userData.mmdEnhancedViewport = viewportFormat;
       material.dispose();
       return std;
     });

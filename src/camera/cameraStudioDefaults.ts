@@ -10,4 +10,5 @@ export const DEFAULT_CAMERA_STUDIO: CameraStudioSettings = {
   backgroundOpacity: 1,
   backgroundBlur: 0,
   liveOrbit: false,
+  manualCameraLock: false,
 };

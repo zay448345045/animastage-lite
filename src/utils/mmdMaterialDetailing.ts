@@ -34,6 +34,7 @@ function isEye(name: string): boolean {
 
 /**
  * Post-process materials for a softer, more detailed look (mmd_rtx material pass lite).
+ * Recalculates when viewport format changes.
  */
 export function applyMaterialDetailingAndSmoothing(
   root: THREE.Object3D,
@@ -58,7 +59,11 @@ export function applyMaterialDetailingAndSmoothing(
         userData: Record<string, unknown>;
       };
 
-      if (mat.userData.mmdDetailed) return;
+      // Recalculate if viewport format changed
+      const lastViewport = mat.userData.mmdDetailedViewport as ViewportFormat;
+      if (mat.userData.mmdDetailed && lastViewport === options.viewportFormat) {
+        return;
+      }
 
       const label = `${mat.name || ''} ${meshName}`;
       const skin = isSkin(label);
@@ -104,7 +109,13 @@ export function applyMaterialDetailingAndSmoothing(
       }
 
       mat.userData.mmdDetailed = true;
+      mat.userData.mmdDetailedViewport = options.viewportFormat;
       mat.needsUpdate = true;
+      
+      // Force shader recompilation
+      if ((mat as any).program) {
+        (mat as any).program = null;
+      }
     });
 
     if (mesh.geometry && !portrait) {

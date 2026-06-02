@@ -29,8 +29,8 @@ import {
   uploadTextureArray,
 } from './textureUpload';
 
-const TRIANGLE_STRIDE = 96;
-const TRIANGLE_STRIDE_FLOATS = 24;
+const TRIANGLE_STRIDE = 64;
+const TRIANGLE_STRIDE_FLOATS = 16;
 const MATERIAL_STRIDE = 96;
 const MATERIAL_STRIDE_FLOATS = 24;
 
@@ -97,6 +97,7 @@ export class PathTracerEngine {
   private triangleCount = 0;
   private materialCount = 0;
   private initialized = false;
+  private deviceLost = false;
   private presentTex: GPUTexture | null = null;
 
   private camera: PathTracerCamera = {
@@ -142,6 +143,9 @@ export class PathTracerEngine {
     void this.device.lost.then((info) => {
       console.warn('[PathTracer] WebGPU device lost:', info.message);
       this.initialized = false;
+      this.deviceLost = true;
+      destroyTextureBundle(this.texBundle);
+      this.texBundle = null;
     });
     this.context = this.canvas.getContext('webgpu') as GPUCanvasContext;
     this.format = navigator.gpu.getPreferredCanvasFormat();
@@ -228,6 +232,26 @@ export class PathTracerEngine {
     return this.frame;
   }
 
+  isReady(): boolean {
+    return this.initialized && !this.deviceLost;
+  }
+
+  dispose(): void {
+    destroyTextureBundle(this.texBundle);
+    this.texBundle = null;
+    this.presentTex?.destroy();
+    this.presentTex = null;
+    this.accumBuf?.destroy();
+    this.gNormalDepth?.destroy();
+    this.gAlbedoMat?.destroy();
+    this.denoisedBuf?.destroy();
+    this.bloomA?.destroy();
+    this.bloomB?.destroy();
+    this.trianglesBuf?.destroy();
+    this.materialsBuf?.destroy();
+    this.initialized = false;
+  }
+
   resize(width: number, height: number, scale = 1): void {
     if (!this.initialized || !this.device) return;
 
@@ -245,6 +269,8 @@ export class PathTracerEngine {
 
     if (w === this.width && h === this.height && this.accumBuf && this.presentTex) return;
 
+    const prevW = this.width;
+    const prevH = this.height;
     this.width = w;
     this.height = h;
     this.halfW = Math.max(1, Math.floor(w / 2));
@@ -346,7 +372,11 @@ export class PathTracerEngine {
     });
 
     this.rebuildPtBindGroup();
-    this.resetAccumulation();
+    const dw = Math.abs(w - prevW);
+    const dh = Math.abs(h - prevH);
+    if (dw > 12 || dh > 12) {
+      this.resetAccumulation();
+    }
   }
 
   private rebuildPtBindGroup(): void {
@@ -461,7 +491,13 @@ export class PathTracerEngine {
   async uploadScene(scene: PathTracerSceneData): Promise<void> {
     if (!this.initialized || !this.device) return;
 
-    await this.ensureTextures(scene.textures);
+    try {
+      await this.ensureTextures(scene.textures);
+    } catch (err) {
+      console.warn('[PathTracer] Texture upload aborted:', err);
+      this.initialized = false;
+      return;
+    }
     this.uploadMaterials(scene.materials);
 
     const tris = scene.triangles.slice(0, PATH_TRACER_MAX_TRIANGLES);
@@ -487,15 +523,7 @@ export class PathTracerEngine {
       f32[b + 12] = tri.uv1[1];
       f32[b + 13] = tri.uv2[0];
       f32[b + 14] = tri.uv2[1];
-      f32[b + 15] = 0;
       u32[b + 15] = tri.matIndex;
-      u32[b + 17] = 0;
-      u32[b + 18] = 0;
-      u32[b + 19] = 0;
-      u32[b + 20] = 0;
-      u32[b + 21] = 0;
-      u32[b + 22] = 0;
-      u32[b + 23] = 0;
     });
 
     this.device.queue.writeBuffer(this.trianglesBuf, 0, bytes);
@@ -515,7 +543,7 @@ export class PathTracerEngine {
   }
 
   renderFrame(): void {
-    if (!this.initialized || !this.device) return;
+    if (!this.initialized || !this.device || this.deviceLost) return;
 
     this.writePathTraceUniforms();
     this.writeDenoiseUniforms();
@@ -648,8 +676,11 @@ export class PathTracerEngine {
     const skyTop = hexToRgb(scenePreset.background);
     const skyHor = hexToRgb(lightPreset.hemisphere.ground);
 
-    const sunAz = -0.7;
-    const sunEl = 0.55;
+    const sunAz = this.settings.sunAzimuth ?? -0.7;
+    const sunEl =
+      this.settings.sunAltDeg !== undefined
+        ? (this.settings.sunAltDeg * Math.PI) / 180
+        : 0.55;
     const ce = Math.cos(sunEl);
     const se = Math.sin(sunEl);
     const ca = Math.cos(sunAz);
@@ -714,11 +745,11 @@ export class PathTracerEngine {
     f[0] = this.width;
     f[1] = this.height;
     let radius = 0;
-    if (this.settings.denoise !== false) {
-      const cap = this.settings.denoiseMaxRadius ?? 3;
-      if (this.frame < 4) radius = Math.min(cap, 3);
-      else if (this.frame < 16) radius = Math.min(cap, 2);
-      else if (this.frame < 64) radius = Math.min(cap, 1);
+    if (this.settings.denoise !== false && this.frame >= 24) {
+      const cap = this.settings.denoiseMaxRadius ?? 2;
+      if (this.frame < 48) radius = 1;
+      else if (this.frame < 96) radius = Math.min(cap, 2);
+      else radius = cap;
     }
     u[2] = radius;
     this.device.queue.writeBuffer(this.denoiseUni, 0, data);

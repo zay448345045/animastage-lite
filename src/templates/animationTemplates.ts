@@ -1,5 +1,6 @@
 import type { CameraKeyframe, CameraSnapshot, TimelineKeyframe, VisualFxSettings } from '../types';
 import { DEFAULT_VISUAL_FX as BASE_VISUAL_FX } from '../visualFx/visualFxPresets';
+import { getStageTargetTuple } from '../scene/cameraFraming';
 
 export type AnimationTemplateCategory = 'camera' | 'character' | 'combo' | 'emote' | 'dance';
 
@@ -19,16 +20,19 @@ export interface AnimationTemplate {
   visualFx?: TemplateVisualFx;
 }
 
-const STAGE_TARGET: [number, number, number] = [0, 10, 0];
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
 
+let templateIdSeq = 0;
+
 function createCameraTplId(frame: number): string {
-  return `cam_tpl_${frame}_${Math.random().toString(36).slice(2, 9)}`;
+  templateIdSeq += 1;
+  return `cam_tpl_${frame}_${templateIdSeq}`;
 }
 
 function createModelTplId(frame: number, track: string): string {
-  return `mdl_tpl_${track}_${frame}_${Math.random().toString(36).slice(2, 9)}`;
+  templateIdSeq += 1;
+  return `mdl_tpl_${track}_${frame}_${templateIdSeq}`;
 }
 
 /** Spherical orbit around stage target — matches MMD default character height. */
@@ -37,11 +41,11 @@ export function orbitCameraSnapshot(
   yawDeg: number,
   pitchDeg: number,
   fov: number,
-  target: [number, number, number] = STAGE_TARGET
+  target?: [number, number, number]
 ): CameraSnapshot {
   const yaw = yawDeg * DEG2RAD;
   const pitch = pitchDeg * DEG2RAD;
-  const [cx, cy, cz] = target;
+  const [cx, cy, cz] = target ?? getStageTargetTuple();
 
   const position: [number, number, number] = [
     cx + distance * Math.cos(pitch) * Math.sin(yaw),
@@ -76,12 +80,14 @@ function cameraKeyframe(frame: number, snap: CameraSnapshot): CameraKeyframe {
 
 function cameraPath(
   maxFrames: number,
-  samples: Array<{ t: number; distance: number; yaw: number; pitch: number; fov: number }>
+  samples: Array<{ t: number; distance: number; yaw: number; pitch: number; fov: number }>,
+  stageTarget?: [number, number, number]
 ): CameraKeyframe[] {
+  const target = stageTarget ?? getStageTargetTuple();
   return samples
     .map(({ t, distance, yaw, pitch, fov }) => {
       const frame = Math.round(t * maxFrames);
-      return cameraKeyframe(frame, orbitCameraSnapshot(distance, yaw, pitch, fov));
+      return cameraKeyframe(frame, orbitCameraSnapshot(distance, yaw, pitch, fov, target));
     })
     .sort((a, b) => a.frame - b.frame);
 }
@@ -140,7 +146,7 @@ function mergeWithNeutralStart(keys: TimelineKeyframe[]): TimelineKeyframe[] {
 }
 
 function generateWaveModelKeyframes(maxFrames: number): TimelineKeyframe[] {
-  const waveFrames = [15, 30, 45, 60, 75, 90, 105, 120].filter((f) => f <= maxFrames);
+  const waveFrames = [30, 60, 90, 120].filter((f) => f <= maxFrames);
   const keys: TimelineKeyframe[] = [];
 
   waveFrames.forEach((frame, index) => {
@@ -230,11 +236,11 @@ function generateGreetingKeyframes(maxFrames: number): TimelineKeyframe[] {
   ];
 }
 
-/** Default MMD timeline length when applying motion templates (30 FPS → 4 seconds). */
-export const MOTION_TEMPLATE_TIMELINE_FRAMES = 120;
+/** Reference length for motion templates at 30 FPS (~50s product rolls). */
+export const MOTION_TEMPLATE_TIMELINE_FRAMES = 1500;
 
-/** Beat interval at ~120 BPM on 30 fps timeline. */
-const EMOTE_BEAT = 15;
+/** Beat interval at ~100 BPM on 30 fps — fewer keys, smoother eval. */
+const EMOTE_BEAT = 20;
 
 function generateGrooveEmoteKeyframes(maxFrames: number): TimelineKeyframe[] {
   const keys: TimelineKeyframe[] = [];
@@ -283,8 +289,8 @@ function generateSideSwingEmoteKeyframes(maxFrames: number): TimelineKeyframe[] 
 
 function generateVictoryFlexKeyframes(maxFrames: number): TimelineKeyframe[] {
   const keys: TimelineKeyframe[] = [];
-  const ticks = [20, 40, 60, 80, 100, 120].filter((f) => f <= maxFrames);
-  for (const [i, frame] of ticks.entries()) {
+  for (let frame = 20; frame <= maxFrames; frame += 20) {
+    const i = Math.floor(frame / 20);
     const up = i % 2 === 0;
     const s = Math.sin((frame / 20) * Math.PI);
     keys.push(
@@ -357,7 +363,7 @@ function generateCornerPoseKeyframes(maxFrames: number): TimelineKeyframe[] {
 
 function generateFullBodyDanceKeyframes(maxFrames: number): TimelineKeyframe[] {
   const keys: TimelineKeyframe[] = [];
-  const beat = 10;
+  const beat = 15;
   for (let frame = beat; frame <= maxFrames; frame += beat) {
     const t = frame / Math.max(maxFrames, 1);
     const phaseRad = t * Math.PI * 6;
@@ -387,7 +393,7 @@ function generateFlythroughCamera(
   maxFrames: number,
   profile: 'rollercoaster' | 'skydive' | 'drone' | 'epic' | 'concert'
 ): CameraKeyframe[] {
-  const steps = profile === 'concert' ? 16 : 12;
+  const steps = profile === 'concert' ? 10 : 8;
   const keys: CameraKeyframe[] = [];
 
   for (let i = 0; i <= steps; i++) {
@@ -442,6 +448,26 @@ const BLOOM_GLOW: TemplateVisualFx = { bloom: true, bloomIntensity: 0.48, bloomT
 const BLOOM_NEON: TemplateVisualFx = { bloom: true, bloomIntensity: 0.58, bloomThreshold: 0.48 };
 
 export const ANIMATION_TEMPLATES: AnimationTemplate[] = [
+  {
+    id: 'cam_duo_wide',
+    name: 'Duo Wide (Static)',
+    description: 'Frames both characters — wider FOV and pull-back.',
+    category: 'camera',
+    generateCameraKeyframes: (max) =>
+      cameraPath(max, [{ t: 0, distance: 42, yaw: 0, pitch: 10, fov: 58 }]),
+  },
+  {
+    id: 'cam_duo_orbit',
+    name: 'Duo Half Orbit',
+    description: 'Slow arc around the center of two dancers.',
+    category: 'camera',
+    generateCameraKeyframes: (max) =>
+      cameraPath(max, [
+        { t: 0, distance: 40, yaw: -60, pitch: 12, fov: 56 },
+        { t: 0.5, distance: 38, yaw: 0, pitch: 10, fov: 54 },
+        { t: 1, distance: 40, yaw: 60, pitch: 12, fov: 56 },
+      ]),
+  },
   {
     id: 'cam_wide_static',
     name: 'Wide Shot (Static)',
@@ -846,5 +872,8 @@ export function visualFxFromTemplate(fx?: TemplateVisualFx): VisualFxSettings {
     bloomEnabled: true,
     bloomIntensity: fx.bloomIntensity ?? 1.2,
     bloomThreshold: fx.bloomThreshold ?? 0.25,
+    ssaoEnabled: false,
+    godRaysEnabled: false,
+    dofEnabled: false,
   };
 }

@@ -9,7 +9,7 @@ import {
 } from '../visualFx/mmdRtxLitePresets';
 import MmdRtxExtrasPanel from './MmdRtxExtrasPanel';
 import VideoRecordPanel from './VideoRecordPanel';
-import type { CameraSnapshot, MmdLiteConfig } from '../types';
+import type { CameraSnapshot, MmdLiteConfig, PathTracerSettings } from '../types';
 
 interface FxSettingsPanelProps {
   visualFx: VisualFxSettings;
@@ -30,6 +30,10 @@ interface FxSettingsPanelProps {
   videoRecordMode?: 'idle' | 'offline' | 'live';
   onRenderMp4?: () => void;
   onLiveRecord?: () => void;
+  pathTracerLabEnabled?: boolean;
+  pathTracer?: PathTracerSettings;
+  onSetPathTracerLabEnabled?: (enabled: boolean) => void;
+  onPatchPathTracer?: (patch: Partial<PathTracerSettings>) => void;
 }
 
 function SliderRow({
@@ -86,6 +90,10 @@ export default function FxSettingsPanel({
   videoRecordMode = 'idle',
   onRenderMp4,
   onLiveRecord,
+  pathTracerLabEnabled = false,
+  pathTracer,
+  onSetPathTracerLabEnabled,
+  onPatchPathTracer,
 }: FxSettingsPanelProps) {
   const exposure = visualFx.toneExposure ?? 1;
   const vertical = viewportFormat === '9:16';
@@ -127,6 +135,74 @@ export default function FxSettingsPanel({
           ))}
         </div>
       </div>
+
+      {onSetPathTracerLabEnabled && pathTracer && onPatchPathTracer && (
+        <div className="border border-amber-500/30 rounded-md p-2 space-y-2 bg-amber-950/15">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold text-amber-300">Path Tracer Lab</span>
+            <button
+              type="button"
+              onClick={() => onSetPathTracerLabEnabled(!pathTracerLabEnabled)}
+              className={`text-[9px] font-bold px-2 py-0.5 rounded border cursor-pointer ${
+                pathTracerLabEnabled
+                  ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                  : 'bg-zinc-900 text-zinc-500 border-zinc-700'
+              }`}
+            >
+              {pathTracerLabEnabled ? 'OPEN' : 'OFF'}
+            </button>
+          </div>
+          <p className="text-[8px] text-zinc-500 leading-relaxed">
+            PMX/PMD: adaptive WebGPU path trace (resolution, tris, denoise auto-tuned). Hold camera
+            still to refine. Empty scene → WebGL2 demo. Chrome/Edge + WebGPU required.
+          </p>
+          {!pathTracerLabEnabled && (
+            <button
+              type="button"
+              onClick={() => onSetPathTracerLabEnabled(true)}
+              className="w-full text-[9px] font-bold py-2 rounded border border-amber-500/40 text-amber-200 hover:bg-amber-950/30 cursor-pointer"
+            >
+              Open Path Tracer
+            </button>
+          )}
+          {pathTracerLabEnabled && (
+            <>
+              <SliderRow
+                label="Bounces"
+                value={pathTracer.bounces}
+                min={1}
+                max={5}
+                step={1}
+                onChange={(v) => onPatchPathTracer({ bounces: Math.round(v) })}
+              />
+              <SliderRow
+                label="Sun °"
+                value={pathTracer.sunAltDeg}
+                min={2}
+                max={55}
+                step={1}
+                onChange={(v) => onPatchPathTracer({ sunAltDeg: Math.round(v) })}
+              />
+              <SliderRow
+                label="Exposure"
+                value={pathTracer.exposure}
+                min={0.2}
+                max={2.2}
+                step={0.05}
+                onChange={(v) => onPatchPathTracer({ exposure: v })}
+              />
+              <SliderRow
+                label="Aperture"
+                value={pathTracer.aperture}
+                min={0}
+                max={0.4}
+                step={0.01}
+                onChange={(v) => onPatchPathTracer({ aperture: v })}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       <div className="border border-[#76b900]/30 rounded-md p-2 space-y-2 bg-[#76b900]/5">
         <div className="flex items-center justify-between gap-2">

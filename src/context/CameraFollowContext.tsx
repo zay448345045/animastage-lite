@@ -5,9 +5,9 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { findHeadWorldPosition } from '../utils/cameraFollow';
+import type { CameraFocusTarget, CameraFramingMode } from '../types';
+import { resolveStudioFocusPoint } from '../scene/cameraFocus';
 
 export interface CameraFollowApi {
   getHeadTarget: (fallback: THREE.Vector3, out: THREE.Vector3) => THREE.Vector3;
@@ -23,30 +23,28 @@ interface CameraFollowProviderProps {
   children?: ReactNode;
   /** When false, always returns fallback (free orbit). */
   enabled?: boolean;
+  framing?: CameraFramingMode;
+  followModelId?: string | null;
+  focusTarget?: CameraFocusTarget;
 }
 
 export function CameraFollowProvider({
   children = null,
   enabled = true,
+  framing = 'single',
+  followModelId = null,
+  focusTarget = 'body',
 }: CameraFollowProviderProps) {
-  const { scene } = useThree();
-
   const getHeadTarget = useCallback(
     (fallback: THREE.Vector3, out: THREE.Vector3) => {
       if (!enabled) {
         out.copy(fallback);
         return out;
       }
-
-      for (const child of scene.children) {
-        const headPos = findHeadWorldPosition(child, out);
-        if (headPos) return headPos;
-      }
-
-      out.copy(fallback);
+      resolveStudioFocusPoint(followModelId, framing, focusTarget, fallback, out);
       return out;
     },
-    [enabled, scene]
+    [enabled, followModelId, framing, focusTarget]
   );
 
   const value = useMemo(() => ({ getHeadTarget }), [getHeadTarget]);

@@ -1,4 +1,5 @@
 import type { ViewportFormat } from '../types';
+import { isNativeApp } from './platform';
 
 /** Character render fidelity — independent from timeline / physics. */
 export type CharacterQuality = 'standard' | 'hd' | 'uhd4k';
@@ -81,6 +82,18 @@ export function getPortraitLiteGpu(_quality: CharacterQuality): CharacterQuality
   };
 }
 
+/** Cap GPU load inside Capacitor WebView (landscape studio). */
+export function getNativeLiteGpu(quality: CharacterQuality): CharacterQualityGpuSettings {
+  const base = getCharacterQualityPreset(quality).gpu;
+  return {
+    maxDpr: Math.min(base.maxDpr, 1.5),
+    textureAnisotropy: Math.min(base.textureAnisotropy, 4),
+    shadowMapSize: Math.min(base.shadowMapSize, 1024),
+    useOutline: base.useOutline,
+    enhanceMaterials: base.enhanceMaterials,
+  };
+}
+
 export function isPortraitFormat(format: ViewportFormat): boolean {
   return format === '9:16';
 }
@@ -91,6 +104,9 @@ export function getCharacterQualityGpu(
 ) {
   if (isPortraitFormat(viewportFormat)) {
     return getPortraitLiteGpu(quality);
+  }
+  if (isNativeApp()) {
+    return getNativeLiteGpu(quality);
   }
   return getCharacterQualityPreset(quality).gpu;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isNativeApp } from '../utils/platform';
 
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => {
@@ -18,5 +19,8 @@ export function useMediaQuery(query: string): boolean {
 }
 
 export function useIsMobileStudio(): boolean {
-  return useMediaQuery('(max-width: 767px)');
+  const isLandscape = useMediaQuery('(orientation: landscape)');
+  const isNarrow = useMediaQuery('(max-width: 767px)');
+  if (isNativeApp() && isLandscape) return false;
+  return isNarrow;
 }

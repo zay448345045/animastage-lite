@@ -12,6 +12,7 @@ import {
   deleteCameraKeyframe,
   mergeCameraKeyframes,
 } from '../components/CameraLogic';
+import { getStageTargetTuple } from '../scene/cameraFraming';
 import {
   deleteKeyframe,
   mergeTimelineKeyframes,
@@ -212,7 +213,33 @@ export function useTimeline({ appState, setAppState, captureCameraRef }: UseTime
           timelineActiveTrack = timelineActiveTrack ?? 'camera';
         }
 
-        if (modelId) {
+        const cameraOrbitAnchor = incomingCamera
+          ? getStageTargetTuple()
+          : prev.cameraOrbitAnchor;
+
+        const visibleModels = prev.models.filter((m) => m.visible);
+        const applyToAllVisible =
+          Boolean(incomingModel) &&
+          visibleModels.length >= 2 &&
+          (template.category === 'character' ||
+            template.category === 'dance' ||
+            template.category === 'emote' ||
+            (template.category === 'combo' && template.generateModelKeyframes));
+
+        if (applyToAllVisible) {
+          models = prev.models.map((m) => {
+            if (!m.visible) return m;
+            return {
+              ...m,
+              activeTemplateId: templateId,
+              keyframes:
+                mode === 'merge'
+                  ? mergeTimelineKeyframes(m.keyframes, incomingModel!)
+                  : incomingModel!,
+              vmdPlaybackEnabled: false,
+            };
+          });
+        } else if (modelId) {
           models = prev.models.map((m) => {
             if (m.id !== modelId) return m;
             const next: typeof m = {
@@ -252,12 +279,15 @@ export function useTimeline({ appState, setAppState, captureCameraRef }: UseTime
             mode === 'replace' ? templateEnd : Math.max(prev.maxFrames, templateEnd);
         }
 
-        const autoPlayModel = Boolean(incomingModel && modelId);
+        const autoPlayModel = Boolean(
+          incomingModel && (applyToAllVisible || modelId)
+        );
 
         return {
           ...prev,
           maxFrames,
           cameraKeyframes,
+          cameraOrbitAnchor,
           cameraMode,
           timelineActiveTrack,
           models,

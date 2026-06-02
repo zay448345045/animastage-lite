@@ -1,3 +1,18 @@
 {
+  "headers": [
+    {
+      "source": "/app-debug.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"AnimaStage-Lite-1.1.0-landscape.apk\""
+        }
+      ]
+    }
+  ],
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.webmmd.suite',
-  appName: 'WebMMD Suite',
+  appName: 'AnimaStage Lite',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

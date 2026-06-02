@@ -1,5 +1,4 @@
 import React, { useState, useRef, DragEvent } from 'react';
-import JSZip from 'jszip';
 import {
   FolderOpen,
   FileCheck,
@@ -7,10 +6,11 @@ import {
   UploadCloud,
   HelpCircle as QuestionIcon,
 } from 'lucide-react';
-import { processMMDFiles, type ProcessedMMDFiles } from '../utils/mmdFiles';
+import { processImportedAssets } from '../utils/assetImport';
+import type { ProcessedMMDFiles } from '../utils/mmdFiles';
 
 interface FileUploaderProps {
-  onModelLoaded: (data: ProcessedMMDFiles) => void;
+  onModelLoaded: (data: ProcessedMMDFiles | ProcessedMMDFiles[]) => void;
 }
 
 export default function FileUploader({ onModelLoaded }: FileUploaderProps) {
@@ -23,75 +23,54 @@ export default function FileUploader({ onModelLoaded }: FileUploaderProps) {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
 
-  const normalizePath = (p: string): string => p.replace(/\\/g, '/').replace(/^\.\//, '').trim();
+  const emitLoaded = (models: ProcessedMMDFiles[], fileCount: number) => {
+    const first = models[0];
+    const vmdTotal = models.reduce((n, m) => n + m.vmdBlobUrls.length, 0);
+    const camNote = models.some((m) => m.hasCameraVmd) ? ' + camera VMD' : '';
+    const multiNote = models.length > 1 ? ` (${models.length} characters)` : '';
+    const vmdNote = vmdTotal > 0 ? ` + ${vmdTotal} VMD` : '';
+    setSuccess(
+      `Loaded "${first?.name ?? 'model'}"${multiNote} — ${fileCount} files${vmdNote}${camNote}. Press PLAY if motion did not start.`
+    );
+    onModelLoaded(models.length === 1 ? models[0]! : models);
+  };
 
-  const emitLoaded = (result: ProcessedMMDFiles, fileCount: number) => {
-    const vmdNote =
-      result.vmdBlobUrls.length > 0
-        ? ` + ${result.vmdBlobUrls.length} VMD (auto-play)`
-        : '';
-    const camNote = result.hasCameraVmd ? ' + camera VMD' : '';
-    setSuccess(`Loaded "${result.name}" (${fileCount} files${vmdNote}${camNote}). Press PLAY if motion did not start.`);
-    onModelLoaded(result);
+  const runImport = async (files: File[]) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const result = await processImportedAssets(files);
+      if ('error' in result) {
+        throw new Error(result.error);
+      }
+      if (result.kind === 'hdr_only') {
+        throw new Error('HDR only — drop into the 3D viewport for environment lighting.');
+      }
+      if (result.kind === 'vmd_only') {
+        throw new Error('VMD only — load a .pmx/.pmd model first, then add motions.');
+      }
+      if (result.skippedFormats.length > 0) {
+        console.warn('[Import] Skipped:', result.skippedFormats.join(', '));
+      }
+      emitLoaded(result.models, files.length);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Import failed.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const processFolderFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const result = await processMMDFiles(Array.from(files));
-      if ('error' in result) {
-        throw new Error(result.error);
-      }
-      emitLoaded(result, files.length);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error loading directory.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    await runImport(Array.from(files));
   };
 
   const processZipFile = async (file: File) => {
     if (!file) return;
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const extractedFiles: File[] = [];
-      const zip = await JSZip.loadAsync(file);
-
-      const promises: Promise<void>[] = [];
-      zip.forEach((relativePath, entry) => {
-        if (entry.dir) return;
-        const promise = entry.async('blob').then((blob) => {
-          const normalizedPath = normalizePath(relativePath);
-          const name = normalizedPath.split('/').pop() || normalizedPath;
-          const zipFile = new File([blob], name, { type: blob.type });
-          Object.defineProperty(zipFile, '_mmdRelativePath', { value: normalizedPath, enumerable: false });
-          extractedFiles.push(zipFile);
-        });
-        promises.push(promise);
-      });
-
-      await Promise.all(promises);
-
-      const result = await processMMDFiles(extractedFiles);
-      if ('error' in result) {
-        throw new Error(result.error);
-      }
-
-      emitLoaded(result, extractedFiles.length);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error parsing ZIP archive.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    await runImport([file]);
   };
 
   const handleDragOver = (e: DragEvent) => {
@@ -110,7 +89,7 @@ export default function FileUploader({ onModelLoaded }: FileUploaderProps) {
     const file = e.dataTransfer.files[0];
     if (file.name.endsWith('.zip')) {
       setActiveTab('zip');
-      processZipFile(file);
+      void processZipFile(file);
     } else {
       setError("To upload an uncompressed folder, use 'Choose Folder' for browser directory selection.");
     }
@@ -166,14 +145,18 @@ export default function FileUploader({ onModelLoaded }: FileUploaderProps) {
           type="file"
           ref={zipInputRef}
           className="hidden"
-          accept=".zip"
-          onChange={(e) => e.target.files?.[0] && processZipFile(e.target.files[0])}
+          accept=".zip,application/zip,application/x-zip-compressed"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void processZipFile(f);
+            e.target.value = '';
+          }}
         />
 
         {loading ? (
           <div className="flex flex-col items-center space-y-2">
             <div className="w-6 h-6 border-2 border-pink-650 border-t-transparent animate-spin rounded-full" />
-            <p className="text-xs font-bold text-zinc-700">Processing MMD files...</p>
+            <p className="text-xs font-bold text-zinc-700">Processing files…</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -190,8 +173,8 @@ export default function FileUploader({ onModelLoaded }: FileUploaderProps) {
               </p>
               <p className="text-[9px] text-zinc-500 font-bold leading-tight">
                 {activeTab === 'folder'
-                  ? '.pmx/.pmd model + optional .vmd motions + all textures'
-                  : 'ZIP with model, VMD motions, and textures'}
+                  ? 'Up to 4× .pmx/.pmd + .vmd + textures (duo spacing auto)'
+                  : 'ZIP with models, VMD, textures — multi-character OK'}
               </p>
             </div>
           </div>
@@ -214,7 +197,9 @@ export default function FileUploader({ onModelLoaded }: FileUploaderProps) {
 
       <div className="text-[9px] text-zinc-500 leading-normal border-t border-zinc-300 pt-2 flex items-center gap-1">
         <QuestionIcon className="w-3 h-3 text-zinc-400" />
-        <span>Supports .pmd/.pmx models, .vmd animations, TGA/BMP/PNG textures.</span>
+        <span>
+          .pmx .pmd .vmd .zip · textures .png .jpg .tga … · map: .glb .gltf .obj (ingest only)
+        </span>
       </div>
     </div>
   );

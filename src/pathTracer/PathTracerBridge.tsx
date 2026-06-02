@@ -4,33 +4,63 @@ import * as THREE from 'three';
 import type { AppState } from '../types';
 import { bakeSceneForPathTracer, cameraFromThree, focusDistFromBaked } from './meshBake';
 import { PathTracerEngine } from './PathTracerEngine';
-import { getPathTracerTierConfig } from './pathTracerTierConfig';
+import { resolvePathTracerTierConfig } from './pathTracerTierConfig';
+import { PathTracerQualityGovernor } from './pathTracerAdaptive';
+import { bakedSceneSignature, pathTracerMotionKey } from './sceneFingerprint';
+import {
+  isPathTracerSettled,
+  PATH_TRACER_LAB_SAFE_LIMITS,
+} from './pathTracerSafety';
 import type { PathTracerRenderSettings, PathTracerSceneData } from './types';
-import { isWebGpuRenderer } from '../utils/webgpuSupport';
+import type { PathTracerLabHudStats } from '../webglPathTracer/PathTracerLabHud';
 
 interface PathTracerBridgeProps {
   appState: AppState;
   containerRef: React.RefObject<HTMLDivElement | null>;
   pathTracerCanvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
+  isRecordingVideo?: boolean;
+  resetToken?: number;
+  onHudUpdate?: (stats: PathTracerLabHudStats) => void;
+  /** Import / PMX load in progress — skip all GPU work. */
+  sceneBusy?: boolean;
+  /** performance.now() threshold before first bake. */
+  modelSettleUntil?: number;
 }
 
-function buildRenderSettings(appState: AppState): PathTracerRenderSettings {
-  const tier = getPathTracerTierConfig(appState.renderTier);
+function hasVisibleModels(appState: AppState): boolean {
+  return appState.models.some((m) => m.visible);
+}
+
+function buildRenderSettings(
+  appState: AppState,
+  labWithScene: boolean,
+  adaptive?: {
+    enableDenoise: boolean;
+    denoiseMaxRadius: number;
+    samplesPerFrame: number;
+    maxBounces: number;
+  }
+): PathTracerRenderSettings {
+  const tier = resolvePathTracerTierConfig(appState.renderTier, labWithScene);
+  const pt = appState.pathTracer;
+  const userBounces = Math.min(5, Math.max(1, pt.bounces));
   return {
     visualFx: appState.visualFx,
-    bounces: tier.maxBounces,
-    samplesPerFrame: 1,
-    denoise: tier.enableDenoise,
-    denoiseMaxRadius: tier.denoiseMaxRadius,
+    bounces: labWithScene
+      ? Math.min(userBounces, adaptive?.maxBounces ?? tier.maxBounces, tier.maxBounces)
+      : tier.maxBounces,
+    samplesPerFrame: adaptive?.samplesPerFrame ?? 1,
+    denoise: adaptive?.enableDenoise ?? tier.enableDenoise,
+    denoiseMaxRadius: adaptive?.denoiseMaxRadius ?? tier.denoiseMaxRadius,
     bloom: tier.enableBloom,
     bloomThreshold: appState.visualFx.bloomThreshold ?? 0.85,
     bloomStrength: tier.enableBloom
       ? (appState.visualFx.bloomIntensity ?? 0.45) * 0.2
       : 0,
-    exposure: tier.exposure,
+    exposure: labWithScene ? pt.exposure : tier.exposure,
     vignetteStrength: appState.visualFx.vignetteEnabled
       ? appState.visualFx.vignetteIntensity * 0.25
-      : 0.08,
+      : 0.12,
     floorY: 0,
     resolutionScale: tier.resolutionScale,
     textureSize: tier.textureSize,
@@ -39,13 +69,19 @@ function buildRenderSettings(appState: AppState): PathTracerRenderSettings {
     maxInternalHeight: tier.maxInternalHeight,
     sunIntensityScale: tier.sunIntensityScale,
     enableNEE: tier.enableNEE,
+    sunAltDeg: labWithScene ? pt.sunAltDeg : undefined,
+    sunAzimuth: -0.65,
   };
 }
 
-function bakeOptions(appState: AppState) {
-  const tier = getPathTracerTierConfig(appState.renderTier);
+function bakeOptions(
+  appState: AppState,
+  labWithScene: boolean,
+  maxTriangles?: number
+) {
+  const tier = resolvePathTracerTierConfig(appState.renderTier, labWithScene);
   return {
-    maxTriangles: tier.maxTriangles,
+    maxTriangles: maxTriangles ?? tier.maxTriangles,
     maxTextures: tier.maxTextures,
     skipAlphaMaterials: tier.skipAlphaMaterials,
   };
@@ -55,7 +91,7 @@ function setOverlayVisible(
   canvas: HTMLCanvasElement | null | undefined,
   visible: boolean,
   sampleCount = 0,
-  maxSamples = 10
+  labMode = false
 ): void {
   if (!canvas) return;
   if (!visible || sampleCount <= 0) {
@@ -63,9 +99,11 @@ function setOverlayVisible(
     canvas.style.zIndex = '-1';
     return;
   }
-  const fade = Math.min(1, sampleCount / Math.min(8, maxSamples));
+  const fade = labMode
+    ? Math.min(1, sampleCount < 4 ? 0.25 + sampleCount * 0.15 : 0.85 + Math.min(0.15, sampleCount / 200))
+    : Math.min(1, sampleCount / 8);
   canvas.style.opacity = String(fade);
-  canvas.style.zIndex = '5';
+  canvas.style.zIndex = '55';
   canvas.style.pointerEvents = 'none';
 }
 
@@ -73,34 +111,81 @@ export default function PathTracerBridge({
   appState,
   containerRef,
   pathTracerCanvasRef,
+  isRecordingVideo = false,
+  resetToken = 0,
+  onHudUpdate,
+  sceneBusy = false,
+  modelSettleUntil = 0,
 }: PathTracerBridgeProps) {
-  const { scene, camera, size, gl } = useThree();
+  const { scene, camera, size } = useThree();
   const engineRef = useRef<PathTracerEngine | null>(null);
+  const gpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const initPromiseRef = useRef<Promise<void> | null>(null);
   const uploadTickRef = useRef(0);
   const cachedSceneRef = useRef<PathTracerSceneData | null>(null);
-  const lastCameraKeyRef = useRef('');
+  const bakedSigRef = useRef('');
+  const motionKeyRef = useRef('');
+  const lastCamPosRef = useRef(new THREE.Vector3());
+  const lastCamQuatRef = useRef(new THREE.Quaternion());
+  const cameraTrackingInitRef = useRef(false);
   const lastPreviewMsRef = useRef(0);
-  const previewBusyRef = useRef(false);
+  const uploadBusyRef = useRef(false);
+  const governorRef = useRef<PathTracerQualityGovernor | null>(null);
+  const appliedScaleRef = useRef(-1);
+  const fpsAccRef = useRef(0);
+  const fpsNRef = useRef(0);
+  const lastFpsMsRef = useRef(0);
+  const frameMsRef = useRef(16);
+  const lastCameraStillRef = useRef(true);
+  const effectiveBouncesRef = useRef(3);
 
-  const tierCfg = getPathTracerTierConfig(appState.renderTier);
+  const labWithScene =
+    appState.pathTracerLabEnabled && hasVisibleModels(appState);
+  const tierCfg = resolvePathTracerTierConfig(appState.renderTier, labWithScene);
 
+  const pathTraceVideo = isRecordingVideo;
   const pathTracePreview =
     tierCfg.previewEnabled &&
     appState.rtxModeEnabled &&
-    !appState.isPlaying;
-  const pathTraceActive = pathTracePreview;
+    !appState.isPlaying &&
+    !appState.pathTracerLabEnabled;
+  const pathTraceLab = labWithScene && !appState.isPlaying;
+  const pathTraceActive = pathTracePreview || pathTraceVideo || pathTraceLab;
 
   useEffect(() => {
-    if (!isWebGpuRenderer(gl)) return;
-    let cancelled = false;
+    if (pathTraceLab && !governorRef.current) {
+      governorRef.current = new PathTracerQualityGovernor(
+        tierCfg.resolutionScale,
+        tierCfg.maxTriangles,
+        PATH_TRACER_LAB_SAFE_LIMITS
+      );
+    }
+    if (!pathTraceLab) {
+      governorRef.current = null;
+      appliedScaleRef.current = -1;
+    }
+  }, [pathTraceLab, tierCfg.resolutionScale, tierCfg.maxTriangles]);
 
+  useEffect(() => {
+    if (!pathTraceActive) {
+      setOverlayVisible(pathTracerCanvasRef?.current, false);
+      engineRef.current?.dispose();
+      engineRef.current = null;
+      initPromiseRef.current = null;
+      gpuCanvasRef.current?.remove();
+      gpuCanvasRef.current = null;
+      if (pathTracerCanvasRef) pathTracerCanvasRef.current = null;
+      cachedSceneRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
     const canvas = document.createElement('canvas');
     canvas.className = 'absolute inset-0 w-full h-full pointer-events-none';
     canvas.style.opacity = '0';
     canvas.style.transition = 'opacity 0.2s';
-    canvas.style.imageRendering = 'auto';
     containerRef.current?.appendChild(canvas);
+    gpuCanvasRef.current = canvas;
     if (pathTracerCanvasRef) pathTracerCanvasRef.current = canvas;
 
     const engine = new PathTracerEngine(canvas);
@@ -109,8 +194,10 @@ export default function PathTracerBridge({
       .then(async (ok) => {
         if (!ok || cancelled) return;
         await engine.init();
-        engine.setSettings(buildRenderSettings(appState));
+        if (cancelled) return;
+        engine.setSettings(buildRenderSettings(appState, labWithScene));
         engine.resize(size.width, size.height, tierCfg.resolutionScale);
+        appliedScaleRef.current = tierCfg.resolutionScale;
       })
       .catch((err) => {
         console.warn('[PathTracer] Init failed:', err);
@@ -118,19 +205,39 @@ export default function PathTracerBridge({
 
     return () => {
       cancelled = true;
+      engine.dispose();
       canvas.remove();
+      gpuCanvasRef.current = null;
       if (pathTracerCanvasRef) pathTracerCanvasRef.current = null;
       engineRef.current = null;
+      initPromiseRef.current = null;
       cachedSceneRef.current = null;
     };
-  }, [gl, containerRef, pathTracerCanvasRef, tierCfg.resolutionScale]);
+  }, [pathTraceActive, containerRef, pathTracerCanvasRef, labWithScene]);
 
   useEffect(() => {
     void initPromiseRef.current?.then(() => {
-      engineRef.current?.setSettings(buildRenderSettings(appState));
-      engineRef.current?.resize(size.width, size.height, tierCfg.resolutionScale);
+      const engine = engineRef.current;
+      if (!engine) return;
+      engine.setSettings(buildRenderSettings(appState, labWithScene));
+      const scale =
+        pathTraceLab && governorRef.current
+          ? governorRef.current.tick(16, true, appState.pathTracer.bounces)
+              .resolutionScale
+          : tierCfg.resolutionScale;
+      if (Math.abs(scale - appliedScaleRef.current) > 0.02) {
+        engine.resize(size.width, size.height, scale);
+        appliedScaleRef.current = scale;
+      }
     });
-  }, [size.width, size.height, tierCfg.resolutionScale, appState.renderTier]);
+  }, [
+    size.width,
+    size.height,
+    appState.renderTier,
+    appState.pathTracer,
+    labWithScene,
+    pathTraceLab,
+  ]);
 
   useEffect(() => {
     if (!pathTraceActive) {
@@ -140,18 +247,73 @@ export default function PathTracerBridge({
 
   useEffect(() => {
     cachedSceneRef.current = null;
+    bakedSigRef.current = '';
+    motionKeyRef.current = '';
     uploadTickRef.current = 0;
-    lastPreviewMsRef.current = 0;
+    cameraTrackingInitRef.current = false;
+    governorRef.current?.reset(tierCfg.resolutionScale, tierCfg.maxTriangles);
+    engineRef.current?.resetAccumulation();
     setOverlayVisible(pathTracerCanvasRef?.current, false);
-  }, [appState.models.length, pathTracerCanvasRef]);
+  }, [appState.models.length, pathTracerCanvasRef, tierCfg.maxTriangles]);
 
-  useFrame(() => {
+  useEffect(() => {
+    engineRef.current?.resetAccumulation();
+    cameraTrackingInitRef.current = false;
+  }, [resetToken]);
+
+  useEffect(() => {
+    engineRef.current?.resetAccumulation();
+    cameraTrackingInitRef.current = false;
+  }, [appState.pathTracer.bounces, appState.pathTracer.exposure, appState.pathTracer.sunAltDeg]);
+
+  useFrame((_, delta) => {
+    if (pathTraceLab) return;
+    runPathTracerTick(delta);
+  });
+
+  useEffect(() => {
+    if (!pathTraceLab || !pathTraceActive) {
+      return;
+    }
+    let raf = 0;
+    let last = performance.now();
+    const loop = (t: number) => {
+      const delta = Math.min(0.1, (t - last) / 1000);
+      last = t;
+      runPathTracerTick(delta);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [pathTraceLab, pathTraceActive]);
+
+  function runPathTracerTick(delta: number) {
     if (!pathTraceActive) return;
 
-    if (pathTracePreview) {
-      const now = performance.now();
+    const now = performance.now();
+    frameMsRef.current = Math.min(120, delta * 1000 || 16);
+
+    if (sceneBusy || !isPathTracerSettled(now, modelSettleUntil)) {
+      if (pathTraceLab && onHudUpdate) {
+        onHudUpdate({
+          spp: 0,
+          fps: 0,
+          bounces: appState.pathTracer.bounces,
+          mode: 'scene',
+          triangleCount: 0,
+          qualityHint: sceneBusy ? 'Import…' : 'Stabilizing…',
+        });
+      }
+      return;
+    }
+
+    if (pathTraceLab && governorRef.current) {
+      if (!governorRef.current.canSubmit(now)) return;
+    }
+
+    if (!pathTraceLab && pathTracePreview) {
       if (now - lastPreviewMsRef.current < tierCfg.previewIntervalMs) return;
-      if (previewBusyRef.current) return;
+      if (uploadBusyRef.current) return;
 
       const engine = engineRef.current;
       if (engine && engine.getSampleCount() >= tierCfg.previewMaxSamples) {
@@ -159,91 +321,201 @@ export default function PathTracerBridge({
           pathTracerCanvasRef?.current,
           true,
           engine.getSampleCount(),
-          tierCfg.previewMaxSamples
+          false
         );
         return;
       }
     }
 
-    previewBusyRef.current = true;
-    lastPreviewMsRef.current = performance.now();
+    if (uploadBusyRef.current) return;
+    uploadBusyRef.current = true;
+    const frameStart = now;
 
     void (async () => {
       try {
         await initPromiseRef.current;
         const engine = engineRef.current;
-        if (!engine) return;
+        if (!engine?.isReady()) return;
 
         const persp = camera as THREE.PerspectiveCamera;
         persp.updateMatrixWorld(true);
-        const baked = cachedSceneRef.current;
 
+        const motionKey = pathTracerMotionKey(appState);
+        const motionChanged = motionKey !== motionKeyRef.current;
+        if (motionChanged) motionKeyRef.current = motionKey;
+
+        let cameraStill = true;
+        if (!cameraTrackingInitRef.current) {
+          cameraTrackingInitRef.current = true;
+          lastCamPosRef.current.copy(persp.position);
+          lastCamQuatRef.current.copy(persp.quaternion);
+        } else if (
+          cameraMovedEnough(
+            persp,
+            lastCamPosRef.current,
+            lastCamQuatRef.current,
+            pathTraceLab
+          )
+        ) {
+          lastCamPosRef.current.copy(persp.position);
+          lastCamQuatRef.current.copy(persp.quaternion);
+          engine.resetAccumulation();
+          cameraStill = false;
+        }
+
+        lastCameraStillRef.current = cameraStill;
+
+        const adaptive =
+          pathTraceLab && governorRef.current
+            ? governorRef.current.tick(
+                frameMsRef.current,
+                cameraStill,
+                appState.pathTracer.bounces
+              )
+            : null;
+        if (adaptive) {
+          effectiveBouncesRef.current = adaptive.maxBounces;
+        }
+
+        if (
+          adaptive &&
+          Math.abs(adaptive.resolutionScale - appliedScaleRef.current) > 0.025
+        ) {
+          engine.resize(size.width, size.height, adaptive.resolutionScale);
+          appliedScaleRef.current = adaptive.resolutionScale;
+        }
+
+        const settings = buildRenderSettings(appState, labWithScene, adaptive ?? undefined);
         engine.setSettings({
-          ...buildRenderSettings(appState),
-          samplesPerFrame: pathTraceVideo ? tierCfg.videoSamplesPerFrame : 1,
+          ...settings,
+          samplesPerFrame: pathTraceVideo
+            ? tierCfg.videoSamplesPerFrame
+            : adaptive?.samplesPerFrame ?? settings.samplesPerFrame,
         });
+
+        const baked = cachedSceneRef.current;
         engine.setCamera(
           cameraFromThree(persp, {
-            aperture: appState.visualFx.dofEnabled && !pathTraceVideo ? 0.015 : 0,
+            aperture:
+              (pathTraceLab ? appState.pathTracer.aperture : 0) ||
+              (appState.visualFx.dofEnabled && !pathTraceVideo ? 0.015 : 0),
             focusDist: baked ? focusDistFromBaked(persp, baked) : 15,
           })
         );
 
         uploadTickRef.current += 1;
-        const forceUpload =
+        const periodicUpload =
+          uploadTickRef.current % tierCfg.sceneUploadIntervalFrames === 0;
+        const needUpload =
           pathTraceVideo ||
           !cachedSceneRef.current ||
-          uploadTickRef.current % tierCfg.sceneUploadIntervalFrames === 0;
+          motionChanged ||
+          periodicUpload;
 
-        if (forceUpload) {
+        if (needUpload) {
           scene.updateMatrixWorld(true);
-          cachedSceneRef.current = bakeSceneForPathTracer(scene, bakeOptions(appState));
-          await engine.uploadScene(cachedSceneRef.current);
+          try {
+            const fresh = bakeSceneForPathTracer(
+              scene,
+              bakeOptions(appState, labWithScene, adaptive?.maxTriangles)
+            );
+            const sig = bakedSceneSignature(fresh);
+            if (sig !== bakedSigRef.current || motionChanged) {
+              cachedSceneRef.current = fresh;
+              bakedSigRef.current = sig;
+              await engine.uploadScene(fresh);
+              if (!engine.isReady()) return;
+              if (motionChanged) {
+                engine.resetAccumulation();
+              }
+            }
+          } catch (err) {
+            console.warn('[PathTracer] Scene bake/upload failed:', err);
+            return;
+          }
         }
 
         const triCount = cachedSceneRef.current?.triangles.length ?? 0;
         if (triCount === 0) {
           setOverlayVisible(pathTracerCanvasRef?.current, false);
+          onHudUpdate?.({
+            spp: 0,
+            fps: 0,
+            bounces: effectiveBouncesRef.current,
+            mode: 'scene',
+            triangleCount: 0,
+          });
           return;
         }
 
-        const camKey = `${persp.position.x.toFixed(1)}:${persp.position.y.toFixed(1)}:${persp.position.z.toFixed(1)}:${persp.quaternion.y.toFixed(2)}`;
-        if (camKey !== lastCameraKeyRef.current) {
-          lastCameraKeyRef.current = camKey;
-          engine.resetAccumulation();
+        const atMax =
+          !pathTraceLab && engine.getSampleCount() >= tierCfg.previewMaxSamples;
+
+        if (!atMax) {
+          engine.renderFrame();
+          if (pathTraceLab) governorRef.current?.recordSubmit(performance.now());
         }
 
-        if (pathTracePreview) {
-          if (engine.getSampleCount() >= tierCfg.previewMaxSamples) {
-            return;
-          }
-          engine.renderFrame();
-          setOverlayVisible(
-            pathTracerCanvasRef?.current,
-            true,
-            engine.getSampleCount(),
-            tierCfg.previewMaxSamples
-          );
+        const spp = engine.getSampleCount();
+        setOverlayVisible(pathTracerCanvasRef?.current, true, spp, pathTraceLab);
+
+        const elapsed = performance.now() - frameStart;
+        fpsAccRef.current += 1000 / Math.max(elapsed, 1);
+        fpsNRef.current += 1;
+        let fps = 0;
+        if (performance.now() - lastFpsMsRef.current > 450) {
+          fps = Math.round(fpsAccRef.current / fpsNRef.current);
+          fpsAccRef.current = 0;
+          fpsNRef.current = 0;
+          lastFpsMsRef.current = performance.now();
         }
 
-        if (pathTraceVideo) {
-          engine.renderFrame();
-          setOverlayVisible(
-            pathTracerCanvasRef?.current,
-            true,
-            engine.getSampleCount(),
-            tierCfg.previewMaxSamples
-          );
+        if (pathTraceLab && onHudUpdate) {
+          const gov = governorRef.current;
+          onHudUpdate({
+            spp,
+            fps,
+            bounces: effectiveBouncesRef.current,
+            mode: 'scene',
+            triangleCount: triCount,
+            qualityHint: gov
+              ? `Auto ${Math.round(gov.fps)} FPS · res ${(appliedScaleRef.current * 100).toFixed(0)}% · ${effectiveBouncesRef.current}b`
+              : undefined,
+          });
         }
+
+        lastPreviewMsRef.current = performance.now();
       } finally {
-        previewBusyRef.current = false;
+        uploadBusyRef.current = false;
       }
     })();
-  });
+  }
 
   return null;
 }
 
-export function shouldUsePathTracer(appState: AppState, webgpu: boolean): boolean {
-  return webgpu && (appState.rtxModeEnabled || appState.renderTier === 'pro');
+function cameraMovedEnough(
+  cam: THREE.PerspectiveCamera,
+  lastPos: THREE.Vector3,
+  lastQuat: THREE.Quaternion,
+  labMode: boolean
+): boolean {
+  const posEps = labMode ? 0.06 : 0.02;
+  const angEps = labMode ? 0.01 : 0.004;
+  if (cam.position.distanceToSquared(lastPos) > posEps * posEps) return true;
+  return cam.quaternion.angleTo(lastQuat) > angEps;
+}
+
+export function shouldUsePathTracer(
+  appState: AppState,
+  webgpu: boolean,
+  sceneBusy = false
+): boolean {
+  if (!webgpu || sceneBusy) return false;
+  if (appState.pathTracerLabEnabled && hasVisibleModels(appState)) return true;
+  return (
+    appState.rtxModeEnabled &&
+    !appState.isPlaying &&
+    appState.renderTier === 'pro'
+  );
 }

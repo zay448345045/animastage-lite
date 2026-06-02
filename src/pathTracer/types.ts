@@ -83,6 +83,10 @@ export interface PathTracerRenderSettings {
   denoiseMaxRadius?: number;
   sunIntensityScale?: number;
   enableNEE?: boolean;
+  /** Sun elevation in degrees (path tracer lab). */
+  sunAltDeg?: number;
+  /** Sun azimuth radians; default ≈ −0.7. */
+  sunAzimuth?: number;
 }
 
 export interface PathTracerCaptureOptions {

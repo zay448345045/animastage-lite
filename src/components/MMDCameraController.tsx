@@ -4,7 +4,15 @@ import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { MMDLoader, MMDAnimationHelper } from 'three-stdlib';
-import type { CameraKeyframe, CameraMode, CameraSnapshot } from '../types';
+import type {
+  CameraFocusTarget,
+  CameraFramingMode,
+  CameraKeyframe,
+  CameraMode,
+  CameraSnapshot,
+} from '../types';
+import { computeDuoFovBoost } from '../scene/characterHeadRegistry';
+import { offsetCameraSnapshotToFocus } from '../scene/cameraFocus';
 import {
   applyCameraSnapshot,
   applyCameraSnapshotDamped,
@@ -26,6 +34,7 @@ import {
   MAX_POLAR_ANGLE,
   MIN_POLAR_ANGLE,
 } from '../utils/cameraFollow';
+import { isRecordingCapture } from '../video/recordingCapture';
 
 const DEFAULT_ORBIT_TARGET = new THREE.Vector3(0, 10, 0);
 const FALLBACK_CAMERA: CameraSnapshot = {
@@ -35,8 +44,8 @@ const FALLBACK_CAMERA: CameraSnapshot = {
   target: [0, 10, 0],
 };
 
-/** VMD / keyframe playback — slightly faster blend than free orbit. */
-const MMD_PLAYBACK_DAMP = 0.12;
+const MMD_PLAYBACK_DAMP = 0.28;
+const MMD_RECORD_DAMP = 1;
 
 type CameraHelperObjects = {
   mixer?: THREE.AnimationMixer;
@@ -53,6 +62,12 @@ function getCameraMixer(helper: MMDAnimationHelper, camera: THREE.Camera): THREE
 
 interface MMDCameraControllerProps {
   cameraMode: CameraMode;
+  cameraFraming?: CameraFramingMode;
+  followModelId?: string | null;
+  autoFocus?: boolean;
+  manualCameraLock?: boolean;
+  focusTarget?: CameraFocusTarget;
+  cameraOrbitAnchor?: [number, number, number];
   currentFrame: number;
   isPlaying: boolean;
   playSpeed: number;
@@ -66,6 +81,12 @@ interface MMDCameraControllerProps {
 
 function MMDCameraControllerInner({
   cameraMode,
+  cameraFraming = 'single',
+  followModelId = null,
+  autoFocus = true,
+  manualCameraLock = false,
+  focusTarget = 'body',
+  cameraOrbitAnchor = [0, 10, 0],
   currentFrame,
   isPlaying,
   playSpeed,
@@ -89,6 +110,9 @@ function MMDCameraControllerInner({
   const playSpeedRef = useRef(playSpeed);
   const cameraKeyframesRef = useRef(cameraKeyframes);
   const hasCameraVmdRef = useRef(hasCameraVmd);
+  const autoFocusRef = useRef(autoFocus);
+  const manualLockRef = useRef(manualCameraLock);
+  const anchorRef = useRef(cameraOrbitAnchor);
   const prevCameraModeRef = useRef<CameraMode>(cameraMode);
   const lastAppliedFrameRef = useRef(-1);
   const wasPlayingCameraRef = useRef(false);
@@ -97,7 +121,10 @@ function MMDCameraControllerInner({
   const goalTarget = useRef(new THREE.Vector3(0, 10, 0));
   const smoothPosition = useRef(new THREE.Vector3(0, 14, 28));
   const smoothTarget = useRef(new THREE.Vector3(0, 10, 0));
-  const headTarget = useRef(new THREE.Vector3(0, 10, 0));
+  const focusScratch = useRef(new THREE.Vector3(0, 10, 0));
+
+  const orbitEnabled =
+    cameraMode === 'free' || (cameraMode === 'mmd' && manualCameraLock);
 
   useEffect(() => {
     smoothPosition.current.copy(perspectiveCamera.position);
@@ -109,6 +136,18 @@ function MMDCameraControllerInner({
     goalPosition.current.copy(smoothPosition.current);
     goalTarget.current.copy(smoothTarget.current);
   }, []);
+
+  useEffect(() => {
+    autoFocusRef.current = autoFocus;
+  }, [autoFocus]);
+
+  useEffect(() => {
+    manualLockRef.current = manualCameraLock;
+  }, [manualCameraLock]);
+
+  useEffect(() => {
+    anchorRef.current = cameraOrbitAnchor;
+  }, [cameraOrbitAnchor]);
 
   useEffect(() => {
     if (cameraMode !== 'mmd') return;
@@ -154,13 +193,6 @@ function MMDCameraControllerInner({
   }, []);
 
   useEffect(() => {
-    if (perspectiveCamera.fov !== 45 && cameraMode === 'free' && !orbitRef.current) {
-      perspectiveCamera.fov = 45;
-      perspectiveCamera.updateProjectionMatrix();
-    }
-  }, [perspectiveCamera, cameraMode]);
-
-  useEffect(() => {
     const helper = helperRef.current;
     if (!helper || !hasCameraVmd || !cameraVmdBlobUrl) {
       vmdReadyRef.current = false;
@@ -197,7 +229,7 @@ function MMDCameraControllerInner({
         try {
           helperRef.current.remove(perspectiveCamera);
         } catch {
-          /* helper may already be cleared */
+          /* ignore */
         }
       }
     };
@@ -268,30 +300,53 @@ function MMDCameraControllerInner({
     const helper = helperRef.current as CameraHelperWithObjects | null;
 
     if (mode === 'free') {
-      if (helper) {
-        helper.enable('cameraAnimation', false);
-      }
+      if (helper) helper.enable('cameraAnimation', false);
       return;
     }
+
+    if (manualLockRef.current) {
+      if (helper) helper.enable('cameraAnimation', false);
+      return;
+    }
+
+    const focus = cameraFollow
+      ? cameraFollow.getHeadTarget(DEFAULT_ORBIT_TARGET, focusScratch.current)
+      : focusScratch.current.copy(DEFAULT_ORBIT_TARGET);
 
     const hasCameraMotion =
       (hasCameraVmdRef.current && vmdReadyRef.current) ||
       cameraKeyframesRef.current.length > 0;
 
     if (!hasCameraMotion) {
-      if (helper) {
-        helper.enable('cameraAnimation', false);
+      if (helper) helper.enable('cameraAnimation', false);
+      if (autoFocusRef.current) {
+        const snap = offsetCameraSnapshotToFocus(
+          FALLBACK_CAMERA,
+          anchorRef.current,
+          focus
+        );
+        const damp = isRecordingCapture() ? MMD_RECORD_DAMP : CAMERA_DAMP_FACTOR;
+        applyCameraSnapshotDamped(
+          perspectiveCamera,
+          snap,
+          goalPosition.current,
+          goalTarget.current,
+          damp
+        );
+      } else {
+        applyDefaultStageCamera(perspectiveCamera);
+        perspectiveCamera.lookAt(DEFAULT_ORBIT_TARGET);
       }
-      applyDefaultStageCamera(perspectiveCamera);
-      perspectiveCamera.lookAt(DEFAULT_ORBIT_TARGET);
       return;
     }
 
-    const focus = cameraFollow
-      ? cameraFollow.getHeadTarget(DEFAULT_ORBIT_TARGET, headTarget.current)
-      : headTarget.current.copy(DEFAULT_ORBIT_TARGET);
-
     const useVmd = hasCameraVmdRef.current && vmdReadyRef.current && helper?.camera;
+    const capturing = isRecordingCapture();
+    const damp = capturing
+      ? MMD_RECORD_DAMP
+      : isPlayingRef.current
+        ? MMD_PLAYBACK_DAMP
+        : CAMERA_DAMP_FACTOR;
 
     if (useVmd && helper) {
       helper.enable('cameraAnimation', true);
@@ -308,13 +363,21 @@ function MMDCameraControllerInner({
         syncMmdCameraMixerToFrame(mixer, frame, fps, perspectiveCamera, helper.cameraTarget);
       }
 
-      smoothPosition.current.lerp(perspectiveCamera.position, MMD_PLAYBACK_DAMP);
-      perspectiveCamera.position.copy(smoothPosition.current);
-
-      helper.cameraTarget.getWorldPosition(headTarget.current);
-      smoothTarget.current.lerp(focus, 0.35);
-      smoothTarget.current.lerp(headTarget.current, CAMERA_DAMP_FACTOR);
-      perspectiveCamera.lookAt(smoothTarget.current);
+      if (autoFocusRef.current) {
+        if (capturing || damp >= 1) {
+          perspectiveCamera.lookAt(focus);
+        } else {
+          smoothTarget.current.lerp(focus, damp);
+          perspectiveCamera.lookAt(smoothTarget.current);
+        }
+        if (orbitRef.current?.target) {
+          orbitRef.current.target.copy(focus);
+        }
+      } else {
+        helper.cameraTarget.getWorldPosition(_headScratch);
+        smoothTarget.current.lerp(_headScratch, damp);
+        perspectiveCamera.lookAt(smoothTarget.current);
+      }
 
       if (!isCameraPoseValid(perspectiveCamera)) {
         applyDefaultStageCamera(perspectiveCamera);
@@ -324,59 +387,79 @@ function MMDCameraControllerInner({
       return;
     }
 
-    if (helper) {
-      helper.enable('cameraAnimation', false);
-    }
+    if (helper) helper.enable('cameraAnimation', false);
 
     const evaluated = evaluateCameraAtFrame(
       cameraKeyframesRef.current,
       frame,
       FALLBACK_CAMERA
     );
-    evaluated.target = [focus.x, focus.y, focus.z];
+    evaluated.fov = computeDuoFovBoost(evaluated.fov, cameraFraming);
 
-    applyCameraSnapshotDamped(
-      perspectiveCamera,
-      evaluated,
-      goalPosition.current,
-      goalTarget.current,
-      CAMERA_DAMP_FACTOR
-    );
+    const snapshot = autoFocusRef.current
+      ? offsetCameraSnapshotToFocus(evaluated, anchorRef.current, focus)
+      : evaluated;
+
+    if (capturing || damp >= 1) {
+      applyCameraSnapshot(perspectiveCamera, snapshot);
+      goalPosition.current.set(snapshot.position[0], snapshot.position[1], snapshot.position[2]);
+      goalTarget.current.set(snapshot.target[0], snapshot.target[1], snapshot.target[2]);
+    } else {
+      applyCameraSnapshotDamped(
+        perspectiveCamera,
+        snapshot,
+        goalPosition.current,
+        goalTarget.current,
+        damp
+      );
+    }
     smoothPosition.current.copy(perspectiveCamera.position);
     smoothTarget.current.copy(goalTarget.current);
+
+    if (orbitRef.current?.target) {
+      orbitRef.current.target.set(snapshot.target[0], snapshot.target[1], snapshot.target[2]);
+      orbitRef.current.update();
+    }
 
     if (!isCameraPoseValid(perspectiveCamera)) {
       applyDefaultStageCamera(perspectiveCamera);
     }
 
-    if (!isPlayingRef.current && frame !== lastAppliedFrameRef.current) {
-      lastAppliedFrameRef.current = frame;
-    } else if (isPlayingRef.current) {
-      lastAppliedFrameRef.current = frame;
-    }
+    lastAppliedFrameRef.current = frame;
+    wasPlayingCameraRef.current = isPlayingRef.current;
   });
 
   return (
-    <>
-      <OrbitControls
-        ref={orbitRef}
-        makeDefault
-        enabled={cameraMode === 'free'}
-        enableDamping
-        dampingFactor={0.05}
-        target={[DEFAULT_ORBIT_TARGET.x, DEFAULT_ORBIT_TARGET.y, DEFAULT_ORBIT_TARGET.z]}
-        minDistance={2}
-        maxDistance={120}
-        minPolarAngle={MIN_POLAR_ANGLE}
-        maxPolarAngle={MAX_POLAR_ANGLE}
-      />
-    </>
+    <OrbitControls
+      ref={orbitRef}
+      makeDefault
+      enabled={orbitEnabled}
+      enableDamping
+      dampingFactor={0.05}
+      target={[DEFAULT_ORBIT_TARGET.x, DEFAULT_ORBIT_TARGET.y, DEFAULT_ORBIT_TARGET.z]}
+      minDistance={2}
+      maxDistance={120}
+      minPolarAngle={MIN_POLAR_ANGLE}
+      maxPolarAngle={MAX_POLAR_ANGLE}
+    />
   );
 }
 
+const _headScratch = new THREE.Vector3();
+
 export default function MMDCameraController(props: MMDCameraControllerProps) {
+  const followEnabled =
+    props.cameraMode === 'mmd' &&
+    props.autoFocus !== false &&
+    !props.manualCameraLock;
+
   return (
-    <CameraFollowProvider enabled={props.cameraMode === 'mmd'}>
+    <CameraFollowProvider
+      enabled={followEnabled}
+      framing={props.cameraFraming ?? 'single'}
+      followModelId={props.followModelId ?? null}
+      focusTarget={props.focusTarget ?? 'body'}
+    >
       <MMDCameraControllerInner {...props} />
     </CameraFollowProvider>
   );

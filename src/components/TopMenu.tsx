@@ -26,6 +26,7 @@ import {
   VisualFxSettings,
   MmdLiteConfig,
   CameraSnapshot,
+  PathTracerSettings,
 } from '../types';
 import FxSettingsPanel from './FxSettingsPanel';
 import { ANIMATION_TEMPLATES, TEMPLATE_CATEGORY_LABELS, DANCE_PICKER_CATEGORIES } from '../templates/animationTemplates';
@@ -79,6 +80,10 @@ interface TopMenuProps {
   onMobileNavOpenChange?: (open: boolean) => void;
   openMenuId?: string | null;
   onOpenMenuIdChange?: (id: string | null) => void;
+  pathTracerLabEnabled?: boolean;
+  pathTracer?: PathTracerSettings;
+  onSetPathTracerLabEnabled?: (enabled: boolean) => void;
+  onPatchPathTracer?: (patch: Partial<PathTracerSettings>) => void;
 }
 
 export default function TopMenu({
@@ -130,6 +135,10 @@ export default function TopMenu({
   onMobileNavOpenChange,
   openMenuId = null,
   onOpenMenuIdChange,
+  pathTracerLabEnabled,
+  pathTracer,
+  onSetPathTracerLabEnabled,
+  onPatchPathTracer,
 }: TopMenuProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -371,6 +380,10 @@ export default function TopMenu({
             videoRecordMode={videoRecordMode}
             onRenderMp4={onRenderMp4}
             onLiveRecord={onLiveRecord}
+            pathTracerLabEnabled={pathTracerLabEnabled}
+            pathTracer={pathTracer}
+            onSetPathTracerLabEnabled={onSetPathTracerLabEnabled}
+            onPatchPathTracer={onPatchPathTracer}
           />
         </div>
       );
@@ -478,6 +491,10 @@ export default function TopMenu({
                         videoRecordMode={videoRecordMode}
                         onRenderMp4={onRenderMp4}
                         onLiveRecord={onLiveRecord}
+                        pathTracerLabEnabled={pathTracerLabEnabled}
+                        pathTracer={pathTracer}
+                        onSetPathTracerLabEnabled={onSetPathTracerLabEnabled}
+                        onPatchPathTracer={onPatchPathTracer}
                       />
                     </div>
                   ) : (

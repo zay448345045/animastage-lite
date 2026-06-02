@@ -7,7 +7,16 @@ import React, {
   useRef,
 } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { Upload, Loader2, Info, Move, RotateCw, Camera as CameraIcon, Film as FilmIcon } from 'lucide-react';
+import {
+  Upload,
+  Loader2,
+  Move,
+  RotateCw,
+  Camera as CameraIcon,
+  Film as FilmIcon,
+  Lock,
+  Unlock,
+} from 'lucide-react';
 import * as THREE from 'three';
 import { OutlineEffect } from 'three-stdlib';
 import { AppState, CameraSnapshot, VisualFxSettings } from '../types';
@@ -25,20 +34,35 @@ import SceneBackgroundPicker from './SceneBackgroundPicker';
 import CameraSceneBackground from './CameraSceneBackground';
 import type { CharacterQuality, SceneBackgroundSettings, TemplateApplyMode } from '../types';
 import {
-  getCharacterQualityDpr,
   getCharacterQualityGpu,
   isPortraitFormat,
   shouldUseCharacterOutline,
 } from '../utils/characterQuality';
+import { resolveEffectiveCanvasDpr } from '../perf/controller/effectiveDpr';
 import WebGLContextGuard from './WebGLContextGuard';
 import RecordingBridge from './RecordingBridge';
 import { isRecordingCapture } from '../video/recordingCapture';
 import { resolveRtxSettings } from '../utils/rtxSettings';
-import { getFilesAsync, processMMDFiles } from '../utils/mmdFiles';
+import { getFilesAsync } from '../utils/mmdFiles';
+import { processImportedAssets } from '../utils/assetImport';
+import type { ProcessedMMDFiles } from '../utils/mmdFiles';
+import ViewportPerfMonitor, { type ViewportPerfSnapshot } from './ViewportPerfMonitor';
+import PerformanceOverlay from '../product/ui/PerformanceOverlay';
+import { DEBUG_UI } from '../config/debugUi';
+import ViewportEmptyState from './viewport/ViewportEmptyState';
+import { AdaptiveDprSync } from './perf/AdaptiveDprSync';
+import { PerfFrameBegin, PerfFrameEnd } from './perf/PerfFrameSync';
+import { MultiCharacterPhysicsCap } from './perf/MultiCharacterPhysicsCap';
+import { getEffectiveVisualFx } from '../perf/effectiveVisualFx';
+import { getPerfRenderAdaptation } from '../perf/controller/renderAdaptation';
+import { isTemplateMotionActive } from '../perf/scenePerfPolicy';
 import { getDefaultLiveValues } from './TimelineLogic';
-import type { MmdLiteConfig, SceneHdrSettings, ViewportFormat } from '../types';
+import type { CameraFramingMode, MmdLiteConfig, SceneHdrSettings, ViewportFormat } from '../types';
+import { resolveCameraFramingFromModels } from '../scene/cameraFraming';
+import StageAutoFollow from '../product/camera/StageAutoFollow';
 import { isHdrFile } from '../utils/hdrEnvironment';
 import LetterboxOverlay from './LetterboxOverlay';
+import { useAutoDismiss } from '../hooks/useAutoDismiss';
 
 function MMDOutlineEffect() {
   const { gl, scene, camera, size } = useThree();
@@ -152,6 +176,7 @@ interface SceneContentProps {
     },
     mesh: import('three').SkinnedMesh
   ) => void;
+  onPerfStats?: (stats: ViewportPerfSnapshot) => void;
 }
 
 function SceneContent({
@@ -183,9 +208,11 @@ function SceneContent({
   onInvalidateReady,
   highlightMaterialName = null,
   onPmxMetadataLoaded,
+  onPerfStats,
 }: SceneContentProps) {
   const captureChrome = isRecordingVideo || isRecordingCapture();
   const activeModel = appState.models.find((m) => m.id === appState.selectedObjectId);
+  const cameraFraming: CameraFramingMode = resolveCameraFramingFromModels(appState.models);
   const modelOffset = {
     x: activeModel?.positionX ?? 0,
     y: activeModel?.positionY ?? 0,
@@ -194,10 +221,17 @@ function SceneContent({
   const hasCustomBg = Boolean(appState.sceneBackground.imageUrl);
   const vertical = viewportFormat === '9:16';
   const qualityGpu = getCharacterQualityGpu(characterQuality, viewportFormat);
-  const useOutline = shouldUseCharacterOutline(characterQuality, viewportFormat);
+  const useOutline =
+    shouldUseCharacterOutline(characterQuality, viewportFormat) &&
+    !vertical;
   const rtxResolved = resolveRtxSettings(appState.rtxSettings, viewportFormat);
   const godRaySunRef = useRef<THREE.Mesh>(null);
-  const postFx = appState.visualFx;
+  const postFx = useMemo(
+    () => getEffectiveVisualFx(appState.visualFx, appState, viewportFormat),
+    [appState, viewportFormat]
+  );
+  const renderAdapt = getPerfRenderAdaptation();
+  const templateMotion = isTemplateMotionActive(appState);
   const cinematicBg =
     hasCustomBg ||
     appState.visualFx.bloomEnabled ||
@@ -211,6 +245,22 @@ function SceneContent({
         onContextLost={onWebGlContextLost}
         onContextRestored={onWebGlContextRestored}
       />
+      <PerfFrameBegin />
+      <PerfFrameEnd />
+      <MultiCharacterPhysicsCap />
+      <AdaptiveDprSync
+        characterQuality={characterQuality}
+        viewportFormat={viewportFormat}
+        portraitLite={vertical}
+        rtxEnabled={appState.rtxModeEnabled}
+        templateMotion={templateMotion}
+      />
+      {onPerfStats && (
+        <ViewportPerfMonitor
+          onUpdate={onPerfStats}
+          isRecordingVideo={isRecordingVideo}
+        />
+      )}
       <RecordingBridge
         recordingActive={isRecordingVideo}
         onTick={onRecordingTick}
@@ -224,7 +274,13 @@ function SceneContent({
       <PortraitCameraFraming
         format={viewportFormat}
         cameraMode={appState.cameraMode}
+        cameraFraming={cameraFraming}
         modelOffset={modelOffset}
+        autoFocusEnabled={
+          appState.cameraMode === 'free' &&
+          appState.cameraStudio.autoFocus !== false &&
+          !appState.cameraStudio.manualCameraLock
+        }
       />
 
       {useOutline && !appState.visualFx.bloomEnabled && !vertical && <MMDOutlineEffect />}
@@ -263,7 +319,7 @@ function SceneContent({
       />
 
       <directionalLight
-        castShadow={!hasCustomBg && !vertical}
+        castShadow={!hasCustomBg && !vertical && renderAdapt.enableShadows}
         position={[10, 20, 10]}
         intensity={
           vertical
@@ -319,6 +375,7 @@ function SceneContent({
             return (
               <MMDModelWrapper
                 key={model.id}
+                sceneModelId={model.id}
                 url={
                   model.blobUrl ||
                   (model.type === 'custom'
@@ -401,6 +458,12 @@ function SceneContent({
 
       <MMDCameraController
         cameraMode={appState.cameraMode}
+        cameraFraming={cameraFraming}
+        followModelId={appState.selectedObjectId}
+        autoFocus={appState.cameraStudio.autoFocus !== false}
+        manualCameraLock={Boolean(appState.cameraStudio.manualCameraLock)}
+        focusTarget={appState.cameraStudio.focusTarget}
+        cameraOrbitAnchor={appState.cameraOrbitAnchor ?? [0, 10, 0]}
         currentFrame={appState.currentFrame}
         isPlaying={appState.isPlaying}
         playSpeed={appState.playSpeed}
@@ -409,6 +472,17 @@ function SceneContent({
         hasCameraVmd={appState.hasCameraVmd}
         onCaptureReady={onCaptureCameraReady}
         onFlyToReady={onFlyToCameraReady}
+      />
+
+      <StageAutoFollow
+        enabled={
+          appState.cameraMode === 'free' &&
+          appState.cameraStudio.autoFocus !== false &&
+          !appState.cameraStudio.manualCameraLock
+        }
+        cameraMode={appState.cameraMode}
+        framing={cameraFraming}
+        followModelId={appState.selectedObjectId}
       />
     </>
   );
@@ -434,22 +508,12 @@ interface ViewportProps {
   onSelectRoot?: () => void;
   onBoneTransform?: (modelId: string, boneId: string, update: BoneTransformUpdate) => void;
   onModelMove?: (modelId: string, x: number, y: number, z: number) => void;
-  onLoadCustomModel?: (data: {
-    name: string;
-    blobUrl: string;
-    modelFileName: string;
-    manager: THREE.LoadingManager;
-    fileMap: Record<string, string>;
-    vmdBlobUrls: string[];
-    vmdFileNames: string[];
-    cameraVmdBlobUrl?: string | null;
-    cameraVmdFileName?: string | null;
-    hasCameraVmd?: boolean;
-  }) => void;
+  onLoadCustomModel?: (data: ProcessedMMDFiles | ProcessedMMDFiles[]) => void;
   captureCameraRef?: React.MutableRefObject<(() => CameraSnapshot | null) | null>;
   flyToCameraRef?: React.MutableRefObject<((snapshot: CameraSnapshot) => void) | null>;
   modelApiRef?: React.MutableRefObject<import('./MMDModelWrapper').MMDModelApi | null>;
   onSetCameraMode?: (mode: AppState['cameraMode']) => void;
+  onPatchCameraStudio?: (patch: Partial<AppState['cameraStudio']>) => void;
   onModelAnimationLoaded?: (modelId: string, frameCount: number) => void;
   onApplyAnimationTemplate?: (templateId: string, mode?: TemplateApplyMode) => void;
   onSetIsPlaying?: (playing: boolean) => void;
@@ -470,6 +534,8 @@ interface ViewportProps {
     },
     mesh: import('three').SkinnedMesh
   ) => void;
+  /** Empty viewport — load featured demo. */
+  onTryDemo?: () => void;
 }
 
 export default function Viewport({
@@ -494,6 +560,7 @@ export default function Viewport({
   flyToCameraRef,
   modelApiRef,
   onSetCameraMode,
+  onPatchCameraStudio,
   onModelAnimationLoaded,
   onApplyAnimationTemplate,
   onSetIsPlaying,
@@ -507,6 +574,7 @@ export default function Viewport({
   onInvalidateReady,
   highlightMaterialName = null,
   onPmxMetadataLoaded,
+  onTryDemo,
 }: ViewportProps) {
   const characterQuality = appState.characterQuality;
   const captureChrome = isRecordingVideo || isRecordingCapture();
@@ -524,12 +592,36 @@ export default function Viewport({
 
   const [isHovering, setIsHovering] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
+  const [perfStats, setPerfStats] = useState<ViewportPerfSnapshot>({
+    fps: '—',
+    frameMs: '—',
+    cpuMs: '—',
+    gpuMs: '—',
+    perfLevel: '—',
+    status: '—',
+    tris: '0',
+    autoScale: '100%',
+  });
   const [internalTransformMode, setInternalTransformMode] = useState<TransformMode>('rotate');
   const gizmoDraggingRef = useRef(false);
   const rootGizmoDraggingRef = useRef(false);
 
   const transformMode = transformModeProp ?? internalTransformMode;
   const setTransformMode = onTransformModeChange ?? setInternalTransformMode;
+
+  const manualMmdCameraHintKey =
+    appState.cameraMode === 'mmd' && appState.cameraStudio.manualCameraLock
+      ? 'manual-mmd-camera'
+      : null;
+  const mmdTemplateHintKey =
+    appState.cameraMode === 'mmd' &&
+    !appState.cameraStudio.manualCameraLock &&
+    !appState.hasCameraVmd &&
+    appState.cameraKeyframes.length === 0
+      ? 'mmd-template-hint'
+      : null;
+  const showManualMmdCameraHint = useAutoDismiss(manualMmdCameraHintKey);
+  const showMmdTemplateHint = useAutoDismiss(mmdTemplateHintKey);
 
   const activeModel = appState.models.find((m) => m.id === appState.selectedObjectId);
   const visibleModels = appState.models.filter((m) => m.visible);
@@ -565,39 +657,46 @@ export default function Viewport({
           return;
         }
 
-        const hdrOnly = files.filter((f) => isHdrFile(f));
-        const mmdFiles = files.filter((f) => !isHdrFile(f));
-
-        if (hdrOnly.length > 0 && onHdrFileDrop) {
-          const hdr = hdrOnly[0]!;
-          const url = URL.createObjectURL(hdr);
-          onHdrFileDrop(url, hdr.name);
-          if (mmdFiles.length === 0) {
-            setLoadingMsg('');
-            return;
-          }
-        }
-
-        const result = await processMMDFiles(mmdFiles.length ? mmdFiles : files);
+        const result = await processImportedAssets(files, (msg) => setLoadingMsg(msg));
         if ('error' in result) {
           alert(result.error);
           setLoadingMsg('');
           return;
         }
 
-        setLoadingMsg('Loading model...');
-        onLoadCustomModel({
-          name: result.name,
-          blobUrl: result.blobUrl,
-          modelFileName: result.modelFileName,
-          manager: result.manager,
-          fileMap: result.fileMap,
-          vmdBlobUrls: result.vmdBlobUrls,
-          vmdFileNames: result.vmdFileNames,
-          cameraVmdBlobUrl: result.cameraVmdBlobUrl,
-          cameraVmdFileName: result.cameraVmdFileName,
-          hasCameraVmd: result.hasCameraVmd,
-        });
+        if (result.kind === 'hdr_only') {
+          if (onHdrFileDrop && result.hdrFiles[0]) {
+            const hdr = result.hdrFiles[0];
+            onHdrFileDrop(URL.createObjectURL(hdr), hdr.name);
+          }
+          setLoadingMsg('');
+          return;
+        }
+
+        if (result.kind === 'vmd_only') {
+          alert('Load a .pmx/.pmd model first, then drop .vmd motion files.');
+          setLoadingMsg('');
+          return;
+        }
+
+        if (result.hdrFiles[0] && onHdrFileDrop) {
+          const hdr = result.hdrFiles[0];
+          onHdrFileDrop(URL.createObjectURL(hdr), hdr.name);
+        }
+
+        if (result.skippedFormats.length > 0) {
+          console.warn(
+            '[Import] Skipped non-MMD meshes (use .pmx/.pmd for characters):',
+            result.skippedFormats.join(', ')
+          );
+        }
+
+        setLoadingMsg(
+          result.models.length > 1
+            ? `Loading ${result.models.length} characters…`
+            : 'Loading model…'
+        );
+        onLoadCustomModel(result.models);
         setLoadingMsg('');
       } catch (err) {
         console.error('Error reading dropped files', err);
@@ -731,6 +830,35 @@ export default function Viewport({
             <FilmIcon className="w-2.5 h-2.5 md:w-3 md:h-3" />
             <span className="hidden sm:inline">MMD</span>
           </button>
+          {appState.cameraMode === 'mmd' && onPatchCameraStudio && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = !appState.cameraStudio.manualCameraLock;
+                onPatchCameraStudio({
+                  manualCameraLock: next,
+                  autoFocus: next ? false : true,
+                });
+              }}
+              className={`px-1.5 py-0.5 md:px-2 border-l border-zinc-800 flex items-center gap-0.5 font-bold uppercase tracking-wide cursor-pointer ${
+                appState.cameraStudio.manualCameraLock
+                  ? 'text-amber-300 bg-amber-950/40'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+              title={
+                appState.cameraStudio.manualCameraLock
+                  ? 'Manual orbit on — click to follow character again'
+                  : 'Place camera yourself (orbit)'
+              }
+            >
+              {appState.cameraStudio.manualCameraLock ? (
+                <Lock className="w-2.5 h-2.5 md:w-3 md:h-3" />
+              ) : (
+                <Unlock className="w-2.5 h-2.5 md:w-3 md:h-3" />
+              )}
+              <span className="hidden sm:inline text-[9px]">Manual</span>
+            </button>
+          )}
         </div>
         {appState.isPlaying && (
           <span className="hidden sm:flex bg-red-950/80 border border-red-500/50 text-[#ff4444] font-extrabold px-2 py-0.5 md:px-2.5 md:py-1 uppercase tracking-widest items-center gap-1.5 rounded-md backdrop-blur-sm shadow-md">
@@ -750,12 +878,15 @@ export default function Viewport({
         </div>
       )}
 
-      {appState.cameraMode === 'mmd' &&
-        !appState.hasCameraVmd &&
-        appState.cameraKeyframes.length === 0 && (
+      {showManualMmdCameraHint && (
+        <div className="absolute top-16 right-4 z-10 max-w-xs bg-amber-950/80 border border-amber-500/40 text-amber-100 text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
+          Manual MMD camera — drag to orbit. Turn off Manual in Camera Studio to fly with templates.
+        </div>
+      )}
+      {showMmdTemplateHint && (
           <div className="absolute top-16 right-4 z-10 hidden md:block max-w-xs bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
-            MMD camera mode: add camera keyframes or load a camera-only .vmd. Switch to{' '}
-            <span className="text-white">Free</span> to orbit the scene.
+            MMD camera: apply a dance / emote template or enable Manual in Camera Studio. Or use{' '}
+            <span className="text-white">Free</span> to orbit.
           </div>
         )}
 
@@ -829,7 +960,11 @@ export default function Viewport({
         }}
         camera={{ position: [0, 14, 28], fov: 45, near: 0.1, far: 2000 }}
         className="w-full h-full block"
-        dpr={portraitLite ? 1 : getCharacterQualityDpr(characterQuality, viewportFormat)}
+        dpr={
+          portraitLite
+            ? 1
+            : resolveEffectiveCanvasDpr(characterQuality, viewportFormat)
+        }
       >
         <SceneContent
           appState={appState}
@@ -860,6 +995,7 @@ export default function Viewport({
           onInvalidateReady={onInvalidateReady}
           highlightMaterialName={highlightMaterialName}
           onPmxMetadataLoaded={onPmxMetadataLoaded}
+          onPerfStats={setPerfStats}
         />
       </Canvas>
       </ViewportCanvasShell>
@@ -883,28 +1019,52 @@ export default function Viewport({
         </div>
       )}
 
-      {!hasModel && !loadingMsg && !isHovering && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-          <div className="bg-[#121418]/90 backdrop-blur-md rounded-2xl p-5 shadow-xl max-w-sm flex flex-col gap-3 border border-zinc-800">
-            <div className="flex items-center gap-3 text-[#39c5bb]">
-              <Info className="w-5 h-5" />
-              <h2 className="text-sm font-bold">Drag &amp; Drop MMD Assets</h2>
-            </div>
-            <ul className="text-xs text-zinc-400 list-disc ml-5 space-y-1">
-              <li>
-                1× <code className="text-zinc-300">.pmx</code> or{' '}
-                <code className="text-zinc-300">.pmd</code> model
-              </li>
-              <li>
-                1+ <code className="text-zinc-300">.vmd</code> animation (optional)
-              </li>
-              <li>All associated image textures</li>
-            </ul>
-          </div>
-        </div>
-      )}
+      {!hasModel && !loadingMsg && !isHovering ? (
+        <ViewportEmptyState onTryDemo={onTryDemo} />
+      ) : null}
 
-      <div className="absolute bottom-4 left-4 z-10 font-mono text-[9px] text-[#39c5bb]/90 bg-[#121418]/85 border border-zinc-800 py-1.5 px-3 pointer-events-none select-none shadow-md rounded-md backdrop-blur-sm">
+      <PerformanceOverlay
+        fps={perfStats.fps}
+        frameMs={perfStats.frameMs}
+        autoScale={perfStats.autoScale}
+      />
+
+      <div
+        className={`absolute bottom-4 right-4 z-10 pointer-events-none select-none ds-perf-hud ${
+          perfStats.perfLevel === 'Lagging'
+            ? 'ds-perf-hud--lagging'
+            : perfStats.perfLevel === 'Okay'
+              ? 'ds-perf-hud--okay'
+              : ''
+        }`}
+      >
+        <div className="ds-perf-hud__row ds-perf-hud__row--primary">
+          Frame <span className="ds-perf-hud__value">{perfStats.frameMs}</span> ms
+        </div>
+        <div className="ds-perf-hud__row">
+          FPS <span className="ds-perf-hud__value">{perfStats.fps}</span>
+          {' · '}
+          {perfStats.perfLevel}
+        </div>
+        <div className="ds-perf-hud__row">
+          CPU <span className="ds-perf-hud__value">{perfStats.cpuMs}</span> ms
+          {' · '}
+          GPU <span className="ds-perf-hud__value">{perfStats.gpuMs}</span> ms
+        </div>
+        <div className="ds-perf-hud__row">
+          Status <span className="ds-perf-hud__value">{perfStats.status}</span>
+        </div>
+        {DEBUG_UI && (
+          <div className="ds-perf-hud__row ds-perf-hud__row--debug">
+            Tris <span className="ds-perf-hud__value">{perfStats.tris}</span>
+            {' · '}
+            Auto <span className="ds-perf-hud__value">{perfStats.autoScale}</span>
+          </div>
+        )}
+      </div>
+
+      {DEBUG_UI && (
+      <div className="absolute bottom-4 left-4 z-10 font-mono text-[9px] text-[#39c5bb]/90 bg-[#121418]/85 border border-zinc-800 py-1.5 px-3 pointer-events-none select-none shadow-md rounded-md backdrop-blur-sm max-w-[min(100%,calc(100%-8rem))]">
         <span>
           {activeModel && !appState.selectedBoneId ? (
             <>
@@ -916,7 +1076,7 @@ export default function Viewport({
             </>
           ) : (
             <>
-              TOON SHADING + OUTLINE | GIZMO:{' '}
+              GIZMO:{' '}
               <span className="text-[#4ade80] font-bold">{transformMode.toUpperCase()}</span>
             </>
           )}
@@ -926,11 +1086,12 @@ export default function Viewport({
           {viewportFormat === '9:16' && (
             <>
               {' | '}
-              <span className="text-[#ff6ba8] font-bold">9:16 CINEMA</span>
+              <span className="text-[#ff6ba8] font-bold">9:16</span>
             </>
           )}
         </span>
       </div>
+      )}
     </div>
   );
 }

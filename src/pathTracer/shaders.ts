@@ -54,21 +54,21 @@ struct GpuMaterial {
   _pad: f32,
 };
 
+/** Must match PathTracerEngine triangle upload (64 bytes / tri). */
 struct GpuTriangle {
-  v0: vec3<f32>,
-  uv0x: f32,
-  v1: vec3<f32>,
-  uv0y: f32,
-  v2: vec3<f32>,
-  uv1x: f32,
-  uv1y: f32,
-  uv2x: f32,
-  uv2y: f32,
-  matIndex: u32,
-  _pad0: u32,
-  _pad1: u32,
-  _pad2: u32,
+  pack0: vec4<f32>,
+  pack1: vec4<f32>,
+  pack2: vec4<f32>,
+  pack3: vec4<f32>,
 };
+
+fn triV0(t: GpuTriangle) -> vec3<f32> { return t.pack0.xyz; }
+fn triV1(t: GpuTriangle) -> vec3<f32> { return t.pack1.xyz; }
+fn triV2(t: GpuTriangle) -> vec3<f32> { return t.pack2.xyz; }
+fn triUv0(t: GpuTriangle) -> vec2<f32> { return vec2<f32>(t.pack0.w, t.pack1.w); }
+fn triUv1(t: GpuTriangle) -> vec2<f32> { return vec2<f32>(t.pack2.w, t.pack3.x); }
+fn triUv2(t: GpuTriangle) -> vec2<f32> { return vec2<f32>(t.pack3.y, t.pack3.z); }
+fn triMatIndex(t: GpuTriangle) -> u32 { return bitcast<u32>(t.pack3.w); }
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
 @group(0) @binding(1) var<storage, read_write> accum: array<vec4<f32>>;
@@ -174,7 +174,7 @@ fn intersectScene(ro: vec3<f32>, rd: vec3<f32>) -> Hit {
 
   for (var ti: u32 = 0u; ti < u.numTriangles; ti = ti + 1u) {
     let tri = triangles[ti];
-    let tr = intersectTriangle(ro, rd, tri.v0, tri.v1, tri.v2);
+    let tr = intersectTriangle(ro, rd, triV0(tri), triV1(tri), triV2(tri));
     if (tr.x > 0.0 && tr.x < hit.t) {
       hit.t = tr.x;
       hit.isFloor = false;
@@ -193,7 +193,7 @@ fn occluded(ro: vec3<f32>, rd: vec3<f32>, maxT: f32) -> bool {
   if (tFloor > 0.001 && tFloor < maxT) { return true; }
   for (var ti: u32 = 0u; ti < u.numTriangles; ti = ti + 1u) {
     let tri = triangles[ti];
-    let tr = intersectTriangle(ro, rd, tri.v0, tri.v1, tri.v2);
+    let tr = intersectTriangle(ro, rd, triV0(tri), triV1(tri), triV2(tri));
     if (tr.x > 0.001 && tr.x < maxT) { return true; }
   }
   return false;
@@ -203,7 +203,7 @@ fn sampleSky(dir: vec3<f32>) -> vec3<f32> {
   let sd = normalize(-u.sunDir);
   let sunCos = dot(dir, sd);
   if (sunCos > u.sunDiscSize) {
-    return u.sunColor * u.sunIntensity * 32.0;
+    return u.sunColor * u.sunIntensity * 4.0;
   }
   let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
   let baseSky = mix(u.skyColorHoriz, u.skyColorTop, t);
@@ -228,19 +228,12 @@ fn barycentricWeights(p: vec3<f32>, v0: vec3<f32>, v1: vec3<f32>, v2: vec3<f32>)
 }
 
 fn triUvAt(tri: GpuTriangle, p: vec3<f32>) -> vec2<f32> {
-  let bc = barycentricWeights(p, tri.v0, tri.v1, tri.v2);
-  let uv0 = vec2<f32>(tri.uv0x, tri.uv0y);
-  let uv1 = vec2<f32>(tri.uv1x, tri.uv1y);
-  let uv2 = vec2<f32>(tri.uv2x, tri.uv2y);
-  return bc.x * uv0 + bc.y * uv1 + bc.z * uv2;
+  let bc = barycentricWeights(p, triV0(tri), triV1(tri), triV2(tri));
+  return bc.x * triUv0(tri) + bc.y * triUv1(tri) + bc.z * triUv2(tri);
 }
 
 fn triUvs(tri: GpuTriangle) -> array<vec2<f32>, 3> {
-  return array<vec2<f32>, 3>(
-    vec2<f32>(tri.uv0x, tri.uv0y),
-    vec2<f32>(tri.uv1x, tri.uv1y),
-    vec2<f32>(tri.uv2x, tri.uv2y)
-  );
+  return array<vec2<f32>, 3>(triUv0(tri), triUv1(tri), triUv2(tri));
 }
 
 fn sampleTexIdx(idx: u32, uv: vec2<f32>) -> vec4<f32> {
@@ -259,8 +252,8 @@ fn sphereUvFromNormal(n: vec3<f32>) -> vec2<f32> {
 
 fn computeTbn(tri: GpuTriangle, geomN: vec3<f32>) -> mat3x3<f32> {
   let uvs = triUvs(tri);
-  let edge1 = tri.v1 - tri.v0;
-  let edge2 = tri.v2 - tri.v0;
+  let edge1 = triV1(tri) - triV0(tri);
+  let edge2 = triV2(tri) - triV0(tri);
   let duv1 = uvs[1] - uvs[0];
   let duv2 = uvs[2] - uvs[0];
   let det = duv1.x * duv2.y - duv2.x * duv1.y;
@@ -354,7 +347,8 @@ fn resolveSurfaceHit(hit: Hit, viewDir: vec3<f32>) -> SurfaceHit {
   }
 
   let tri = triangles[u32(hit.triIdx)];
-  let mat = materials[tri.matIndex];
+  let matIdx = min(triMatIndex(tri), max(1u, u.numMaterials) - 1u);
+  let mat = materials[matIdx];
   let surf = evaluateMmdSurface(mat, tri, hit.pos, hit.normal, viewDir);
   result.albedo = surf.rgb;
   result.alpha = surf.a;
@@ -407,18 +401,18 @@ fn directSun(
   if (matType == 1u) { brdf = evalGGX(albedo, n, wo, sunSample, roughness); }
   else { brdf = evalLambert(albedo, n, sunSample); }
   let toon = toonFactor(mat, n, sunSample);
-  return brdf * toon * u.sunColor * u.sunIntensity * 32.0;
+  return brdf * toon * u.sunColor * u.sunIntensity * 2.5;
 }
 
 fn findValidHit(roIn: vec3<f32>, rdIn: vec3<f32>) -> Hit {
   var ro = roIn;
   var rd = rdIn;
-  for (var attempt: u32 = 0u; attempt < 8u; attempt = attempt + 1u) {
+  for (var attempt: u32 = 0u; attempt < 4u; attempt = attempt + 1u) {
     let hit = intersectScene(ro, rd);
     if (hit.t > 1e10) { return hit; }
     if (hit.isFloor) { return hit; }
     let tri = triangles[u32(hit.triIdx)];
-    let mat = materials[tri.matIndex];
+    let mat = materials[triMatIndex(tri)];
     if ((mat.flags & MMD_ALPHA_TEST) != 0u) {
       let surf = evaluateMmdSurface(mat, tri, hit.pos, hit.normal, -rd);
       if (surf.a < mat.alphaCutoff) {
@@ -505,8 +499,31 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let cw = normalize(u.cameraForward);
   let cu = normalize(u.cameraRight);
   let cv = normalize(u.cameraUp);
+  let fovRad = u.fov * 0.0174532925;
+  let focalLen = 1.0 / max(0.001, tan(fovRad * 0.5));
+  let pixXc = f32(gid.x);
+  let pixYc = u.resolution.y - 1.0 - f32(gid.y);
+  let uvxc = (2.0 * pixXc - u.resolution.x) / u.resolution.y;
+  let uvyc = (2.0 * pixYc - u.resolution.y) / u.resolution.y;
+  var rdCenter = normalize(uvxc * cu + uvyc * cv + focalLen * cw);
+  var roCenter = u.cameraPos;
+  if (u.aperture > 0.0001) {
+    let focalC = roCenter + rdCenter * u.focusDist;
+    roCenter = focalC;
+    rdCenter = normalize(focalC - roCenter);
+  }
+  let idx0 = gid.y * w + gid.x;
+  let hG = findValidHit(roCenter, rdCenter);
+  if (hG.t > 1e10) {
+    gNormalDepth[idx0] = vec4<f32>(0.0, 1.0, 0.0, 1e6);
+    gAlbedoMat[idx0] = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+  } else {
+    let surfG = resolveSurfaceHit(hG, -rdCenter);
+    gNormalDepth[idx0] = vec4<f32>(surfG.shadN, hG.t);
+    gAlbedoMat[idx0] = vec4<f32>(surfG.albedo, f32(surfG.matType));
+  }
+
   var color = vec3<f32>(0.0);
-  var wroteGbuf = false;
 
   for (var s: u32 = 0u; s < u.samplesPerFrame; s = s + 1u) {
     let jitter = rand2(&seed) - 0.5;
@@ -514,8 +531,6 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let pixY = (u.resolution.y - 1.0 - f32(gid.y)) + jitter.y;
     let uvx = (2.0 * pixX - u.resolution.x) / u.resolution.y;
     let uvy = (2.0 * pixY - u.resolution.y) / u.resolution.y;
-    let fovRad = u.fov * 0.0174532925;
-    let focalLen = 1.0 / max(0.001, tan(fovRad * 0.5));
     var rd = normalize(uvx * cu + uvy * cv + focalLen * cw);
     var ro = u.cameraPos;
 
@@ -526,25 +541,11 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
       rd = normalize(focal - ro);
     }
 
-    if (!wroteGbuf) {
-      let h0 = findValidHit(ro, rd);
-      let idx0 = gid.y * w + gid.x;
-      if (h0.t > 1e10) {
-        gNormalDepth[idx0] = vec4<f32>(0.0, 1.0, 0.0, 1e6);
-        gAlbedoMat[idx0] = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-      } else {
-        let surf0 = resolveSurfaceHit(h0, -rd);
-        gNormalDepth[idx0] = vec4<f32>(surf0.shadN, h0.t);
-        gAlbedoMat[idx0] = vec4<f32>(surf0.albedo, f32(surf0.matType));
-      }
-      wroteGbuf = true;
-    }
-
     color = color + tracePath(ro, rd, &seed);
   }
 
   color = color / f32(u.samplesPerFrame);
-  color = min(color, vec3<f32>(40.0));
+  color = min(color, vec3<f32>(12.0));
   let idx = gid.y * w + gid.x;
   let prev = accum[idx];
   accum[idx] = vec4<f32>(prev.rgb + color, prev.a + 1.0);

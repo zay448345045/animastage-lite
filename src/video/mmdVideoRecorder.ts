@@ -31,6 +31,9 @@ export interface VideoRecordProgress {
 
 export type FrameAdvanceCallback = (frame: number) => void | Promise<void>;
 
+/** Recreate encoder before Chrome reclaims it (~60s without encode calls). */
+const ENCODER_IDLE_RECYCLE_MS = 45_000;
+
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -138,6 +141,148 @@ function captureVideoFrame(
   return new VideoFrame(oc, { timestamp });
 }
 
+function isCodecReclaimedError(e: unknown): boolean {
+  if (!(e instanceof DOMException)) {
+    if (e instanceof Error) {
+      return /reclaimed|inactivity|QuotaExceeded/i.test(e.message);
+    }
+    return false;
+  }
+  return (
+    e.name === 'QuotaExceededError' ||
+    /reclaimed|inactivity/i.test(e.message)
+  );
+}
+
+async function drainEncoder(encoder: VideoEncoder, maxSpins = 12_000): Promise<void> {
+  if (encoder.state === 'closed') return;
+  let spins = 0;
+  while (encoder.encodeQueueSize > 0 && spins < maxSpins) {
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    spins += 1;
+  }
+}
+
+type MuxerLike = import('mp4-muxer').Muxer<import('mp4-muxer').ArrayBufferTarget>;
+
+interface EncoderBundle {
+  encoder: VideoEncoder;
+  lastEncodeAt: number;
+  fatalError: Error | null;
+}
+
+function createEncoderBundle(
+  muxer: MuxerLike,
+  config: VideoEncoderConfig
+): EncoderBundle {
+  const bundle: EncoderBundle = {
+    encoder: null as unknown as VideoEncoder,
+    lastEncodeAt: Date.now(),
+    fatalError: null,
+  };
+  const encoder = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (e) => {
+      bundle.fatalError = e instanceof Error ? e : new Error(String(e));
+    },
+  });
+  encoder.configure(config);
+  bundle.encoder = encoder;
+  return bundle;
+}
+
+function closeEncoderSafe(encoder: VideoEncoder | undefined): void {
+  if (!encoder || encoder.state === 'closed') return;
+  try {
+    encoder.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+async function flushEncoderSafe(encoder: VideoEncoder): Promise<void> {
+  if (encoder.state === 'closed') return;
+  try {
+    await encoder.flush();
+  } catch {
+    /* ignore — may already be closed after reclaim */
+  }
+}
+
+async function recycleEncoder(
+  bundle: EncoderBundle,
+  muxer: MuxerLike,
+  config: VideoEncoderConfig
+): Promise<EncoderBundle> {
+  await drainEncoder(bundle.encoder);
+  await flushEncoderSafe(bundle.encoder);
+  closeEncoderSafe(bundle.encoder);
+  return createEncoderBundle(muxer, config);
+}
+
+function encoderNeedsRecycle(bundle: EncoderBundle): boolean {
+  if (bundle.encoder.state === 'closed') return true;
+  if (bundle.fatalError) return true;
+  return Date.now() - bundle.lastEncodeAt > ENCODER_IDLE_RECYCLE_MS;
+}
+
+/**
+ * Encode one frame; always closes VideoFrame. Recreates encoder if codec was reclaimed.
+ */
+async function encodeCapturedFrame(
+  bundle: EncoderBundle,
+  muxer: MuxerLike,
+  config: VideoEncoderConfig,
+  canvas: HTMLCanvasElement,
+  w: number,
+  h: number,
+  timestamp: number,
+  requestKeyFrame: boolean
+): Promise<{ bundle: EncoderBundle; keyFrame: boolean }> {
+  let keyFrame = requestKeyFrame;
+  let active = bundle;
+
+  if (encoderNeedsRecycle(active)) {
+    active = await recycleEncoder(active, muxer, config);
+    keyFrame = true;
+  }
+
+  let vf: VideoFrame | null = null;
+  try {
+    vf = captureVideoFrame(canvas, w, h, timestamp);
+
+    const runEncode = () => {
+      if (active.encoder.state === 'closed') {
+        throw new DOMException('VideoEncoder closed', 'InvalidStateError');
+      }
+      if (active.fatalError) {
+        throw active.fatalError;
+      }
+      active.encoder.encode(vf!, { keyFrame });
+    };
+
+    try {
+      runEncode();
+    } catch (e) {
+      if (!isCodecReclaimedError(e)) throw e;
+      active = await recycleEncoder(active, muxer, config);
+      keyFrame = true;
+      runEncode();
+    }
+
+    await drainEncoder(active.encoder);
+    active.lastEncodeAt = Date.now();
+    active.fatalError = null;
+    return { bundle: active, keyFrame: false };
+  } finally {
+    try {
+      vf?.close();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 let abortFlag = false;
 
 export function abortVideoRender(): void {
@@ -162,7 +307,6 @@ export async function renderOfflineMp4(
   const bitrate = Math.max(8_000_000, Math.min(80_000_000, (opts.bitrateMbps ?? 35) * 1_000_000));
   const { start, end } = resolveFrameRange(opts);
   const totalFrames = Math.max(1, end - start);
-  const frameDur = 1 / fps;
   const format = opts.viewportFormat ?? '16:9';
   const { width: w, height: h } = exportDimensions(canvas, format);
 
@@ -192,15 +336,19 @@ export async function renderOfflineMp4(
     fastStart: 'in-memory',
   });
 
-  let encoder: VideoEncoder;
+  const encoderConfig: VideoEncoderConfig = {
+    codec,
+    width: w,
+    height: h,
+    bitrate,
+    framerate: fps,
+    latencyMode: 'quality',
+    hardwareAcceleration: 'prefer-hardware',
+  };
+
+  let bundle: EncoderBundle;
   try {
-    encoder = new VideoEncoder({
-      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-      error: (e) => {
-        throw e;
-      },
-    });
-    encoder.configure({ codec, width: w, height: h, bitrate, framerate: fps });
+    bundle = createEncoderBundle(muxer, encoderConfig);
   } catch (e) {
     endRecordingCapture();
     onProgress?.({
@@ -211,17 +359,29 @@ export async function renderOfflineMp4(
     return false;
   }
 
+  let needKeyFrame = true;
+
   try {
     for (let i = 0; i < totalFrames; i++) {
       if (abortFlag) break;
       const frame = start + i;
       await onAdvanceFrame(frame);
-      await waitFrames(2);
+      await waitFrames(1);
 
       const timestamp = Math.round(i * (1_000_000 / fps));
-      const vf = captureVideoFrame(canvas, w, h, timestamp);
-      encoder.encode(vf, { keyFrame: i === 0 || i % (fps * 2) === 0 });
-      vf.close();
+      const keyFrameRequest = needKeyFrame || i === 0 || i % (fps * 2) === 0;
+      const result = await encodeCapturedFrame(
+        bundle,
+        muxer,
+        encoderConfig,
+        canvas,
+        w,
+        h,
+        timestamp,
+        keyFrameRequest
+      );
+      bundle = result.bundle;
+      needKeyFrame = result.keyFrame;
 
       const pct = (i + 1) / totalFrames;
       if (i % 2 === 0 || i === totalFrames - 1) {
@@ -231,13 +391,13 @@ export async function renderOfflineMp4(
           message: `Frames ${i + 1} / ${totalFrames} (${Math.round(pct * 100)}%)`,
         });
       }
-      await new Promise((r) => setTimeout(r, 0));
     }
 
     if (!abortFlag) {
       onProgress?.({ phase: 'finalize', progress: 0.98, message: 'Muxing MP4…' });
-      await encoder.flush();
-      encoder.close();
+      await drainEncoder(bundle.encoder);
+      await flushEncoderSafe(bundle.encoder);
+      closeEncoderSafe(bundle.encoder);
       muxer.finalize();
       const buffer = muxer.target.buffer;
       downloadBlob(new Blob([buffer], { type: 'video/mp4' }), `mmd-render-${timestampName()}.mp4`);
@@ -247,16 +407,16 @@ export async function renderOfflineMp4(
         message: `Done — ${totalFrames} frames @ ${fps} FPS`,
       });
     } else {
-      encoder.close();
+      await drainEncoder(bundle.encoder);
+      closeEncoderSafe(bundle.encoder);
       onProgress?.({ phase: 'cancelled', progress: 0, message: 'Cancelled' });
     }
   } catch (e) {
-    try {
-      encoder.close();
-    } catch {
-      /* ignore */
-    }
-    onProgress?.({ phase: 'error', progress: 0, message: (e as Error).message });
+    closeEncoderSafe(bundle.encoder);
+    const msg = isCodecReclaimedError(e)
+      ? 'Export stopped — video codec was reclaimed. Keep the tab focused and try again, or use a shorter duration.'
+      : (e as Error).message;
+    onProgress?.({ phase: 'error', progress: 0, message: msg });
     endRecordingCapture();
     return false;
   } finally {
@@ -308,6 +468,7 @@ export function startLiveRecord(
   };
   recorder.onstop = () => {
     endRecordingCapture();
+    stream.getTracks().forEach((t) => t.stop());
     const blob = new Blob(chunks, { type: finalMime });
     downloadBlob(blob, `mmd-record-${timestampName()}.${ext}`);
     onStop?.(blob, ext);

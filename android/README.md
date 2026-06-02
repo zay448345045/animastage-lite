@@ -1,41 +1,37 @@
-# Android — обновить веб из `src/`
+# Android — обновить Studio из `src/`
 
-Проект Capacitor уже настроен. Чтобы залить **все последние изменения** из веб-студии:
+Capacitor-проект. Чтобы залить **последнюю веб-студию** (UI/UX, perf HUD, ZIP-import) в APK:
 
 ## Быстрый способ (Windows)
 
 ```powershell
 cd e:\download\web-mmd-suite
-npm run build
-powershell -ExecutionPolicy Bypass -File scripts\sync-android-assets.ps1
-```
-
-Или одной командой после `npm install`:
-
-```bash
 npm run sync:android:assets
 ```
 
-Скрипт копирует `dist/` → `app/src/main/assets/public/` (полная замена папки).
+Скрипт:
 
-## Через Capacitor CLI
+1. Собирает `dist/` (`npm run build`)
+2. Копирует `dist/` → `android/app/src/main/assets/public/`
+3. Собирает debug APK (`gradlew assembleDebug`)
+4. Копирует APK → `public/app-debug.apk` (для лендинга)
 
-```bash
-npm run build
-npx cap copy android
-```
+Версия APK: **`android/version.properties`** (`VERSION_NAME` / `VERSION_CODE`).
 
-## Сборка APK
+## Сборка в Android Studio
 
-Android Studio → Open `android/` → **Build → Build Bundle(s) / APK(s)**.
+Android Studio → Open `android/` → **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
 
-Подпись release: `keystore.properties` в `android/`.
+Release-подпись: `keystore.properties` в `android/`.
 
-## Что попадает в APK
+## v1.1.0 — что внутри
 
-- Лендинг `/` и студия `/app`
-- Мобильный UI (нижняя панель, таймлайн, Templates sheet)
-- FX / bloom / DOF (как в вебе, без отдельного отключения для Android)
-- `ammo/` для физики
+| Область | Поведение |
+|---------|-----------|
+| **Запуск** | Сразу **Studio `/app`** (без лендинга), landscape lock |
+| **UI** | Design system, sidebar Load/Scene/Controls, empty viewport |
+| **Perf HUD** | Frame ms, CPU/GPU, Smooth/Okay/Lagging |
+| **WebView** | Balanced quality, immersive chrome (`MainActivity`) |
+| **Workflow** | PMX/VMD/ZIP, Demo Gallery, Shorts, MP4 export |
 
 Имя в лаунчере: **AnimaStage Lite** (`res/values/strings.xml`).

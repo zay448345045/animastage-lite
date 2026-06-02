@@ -5,6 +5,9 @@ export type PhysicsMode = 'anytime' | 'playtime' | 'off';
 
 export type CameraMode = 'free' | 'mmd';
 
+/** Single character vs center-framed duo/group. */
+export type CameraFramingMode = 'single' | 'duo';
+
 export interface CameraKeyframe {
   id: string;
   frame: number;
@@ -238,6 +241,8 @@ export interface CameraStudioSettings {
   backgroundOpacity: number;
   backgroundBlur: number;
   liveOrbit: boolean;
+  /** When true, auto-framing is off — orbit controls stay where you place them. */
+  manualCameraLock?: boolean;
 }
 
 export interface VisualFxSettings {
@@ -330,6 +335,8 @@ export interface AppState {
   timelineActiveTrack: TimelineActiveTrack;
   cameraMode: CameraMode;
   cameraKeyframes: CameraKeyframe[];
+  /** Orbit center when camera keyframes were applied — paths track live focus from this point. */
+  cameraOrbitAnchor?: [number, number, number];
   cameraVmdBlobUrl?: string | null;
   cameraVmdFileName?: string | null;
   hasCameraVmd?: boolean;

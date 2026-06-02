@@ -66,10 +66,15 @@ function shouldBakeMesh(mesh: THREE.Mesh): boolean {
 
 function subsampleBlock(tris: BakedTriangle[], budget: number): BakedTriangle[] {
   if (tris.length <= budget) return tris;
-  const step = tris.length / budget;
   const result: BakedTriangle[] = [];
+  const step = tris.length / budget;
+  let seed = tris.length * 7919 + budget;
   for (let i = 0; i < budget; i += 1) {
-    result.push(tris[Math.floor(i * step)]!);
+    const base = Math.floor(i * step);
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    const jitter = seed % Math.max(1, Math.floor(step));
+    const idx = Math.min(tris.length - 1, base + jitter);
+    result.push(tris[idx]!);
   }
   return result;
 }
@@ -129,7 +134,7 @@ function bakeMeshTriangles(
   const readVertex = (i: number, target: THREE.Vector3): void => {
     if (skinned) {
       skinned.getVertexPosition(i, target);
-      target.applyMatrix4(matrix);
+      skinned.localToWorld(target);
     } else {
       target.fromBufferAttribute(pos, i);
       target.applyMatrix4(matrix);
@@ -223,6 +228,7 @@ export function bakeSceneForPathTracer(
     if (block.length > 0) meshBlocks.push(block);
   });
 
+  meshBlocks.sort((a, b) => b.length - a.length);
   const triangles = mergeMeshBlocks(meshBlocks, maxTriangles);
 
   const lights: PathTracerLight[] = [];
@@ -250,14 +256,17 @@ export function bakeSceneForPathTracer(
 }
 
 function syncSkinnedMeshes(root: THREE.Object3D): void {
+  root.updateMatrixWorld(true);
   root.traverse((obj) => {
     const skinned = obj as THREE.SkinnedMesh;
     if (!skinned.isSkinnedMesh) return;
-    skinned.skeleton?.bones.forEach((bone) => bone.updateMatrixWorld(true));
-    skinned.skeleton?.update();
+    const skeleton = skinned.skeleton;
+    if (skeleton) {
+      skeleton.bones.forEach((bone) => bone.updateMatrixWorld(true));
+      skeleton.update();
+    }
     skinned.updateMatrixWorld(true);
   });
-  root.updateMatrixWorld(true);
 }
 
 export function prepareSceneForPathTracer(root: THREE.Object3D): void {

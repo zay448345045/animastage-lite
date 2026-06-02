@@ -63,6 +63,8 @@ import {
   sanitizeMeshMorphAttributes,
 } from '../utils/mmdModelDetailing';
 import { applyMaterialDetailingAndSmoothing } from '../utils/mmdMaterialDetailing';
+import { registerCharacterRoot } from '../scene/characterHeadRegistry';
+import { runSafeMeshLoadOptimizationsAsync } from '../render/meshLoadOptimizations';
 
 if (typeof window !== 'undefined') {
   (window as Window & { MMDParser?: unknown }).MMDParser =
@@ -586,6 +588,8 @@ function RootMarkerVisual({ onSelectRoot }: RootMarkerVisualProps) {
 }
 
 interface MMDModelWrapperProps {
+  /** Registers root for duo camera framing (Scene outliner id). */
+  sceneModelId?: string;
   url: string;
   isPlaying: boolean;
   physicsMode: 'anytime' | 'playtime' | 'off';
@@ -659,6 +663,7 @@ function applyCharacterMaterialPipeline(
 }
 
 export default function MMDModelWrapper({
+  sceneModelId,
   url,
   isPlaying,
   physicsMode,
@@ -913,6 +918,11 @@ export default function MMDModelWrapper({
     rootGroupRef.current = node;
     setRootNode(node);
   }, []);
+
+  useEffect(() => {
+    if (!sceneModelId) return;
+    return registerCharacterRoot(sceneModelId, () => rootGroupRef.current);
+  }, [sceneModelId]);
 
   const boneTarget = useMemo(() => {
     if (rootManipulatorActive || !selectedBone) return null;
@@ -1204,6 +1214,18 @@ export default function MMDModelWrapper({
         setMesh(mmdMesh);
         setLoading(false);
         setUseProcedural(false);
+
+        void runSafeMeshLoadOptimizationsAsync(mmdMesh).then(() => {
+          if (!isCurrent || meshRef.current !== mmdMesh) return;
+          const helper = helperRef.current;
+          const meshState = helper ? getHelperMeshState(helper, mmdMesh) : undefined;
+          meshState?.physics?.reset?.();
+          mmdMesh.traverse((o) => {
+            if ((o as THREE.Mesh).isMesh) {
+              (o as THREE.Mesh).matrixAutoUpdate = true;
+            }
+          });
+        });
       };
 
       const finishAnimation = (mmdMesh: THREE.SkinnedMesh, animation?: THREE.AnimationClip) => {
@@ -1517,6 +1539,7 @@ export default function MMDModelWrapper({
 
     if (useVmdAnimation) {
       helper.enable('animation', true);
+      const speedFactor = Math.max(0.001, playSpeedRef.current / MMD_FPS);
       if (playing) {
         if (!wasPlayingRef.current && meshState?.mixer) {
           seekAnimationMixer(
@@ -1524,7 +1547,7 @@ export default function MMDModelWrapper({
             frameToTime(activeFrame, MMD_FPS)
           );
         }
-        helper.update(delta);
+        helper.update(delta * speedFactor);
       } else {
         const time = frameToTime(activeFrame, MMD_FPS);
         if (meshState?.mixer) {

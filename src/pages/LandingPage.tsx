@@ -16,15 +16,55 @@ import {
   LayoutGrid,
   Share2,
   RotateCcw,
+  Flame,
+  Check,
 } from 'lucide-react';
 import LandingHeroMockup from './landing/LandingHeroMockup';
 import FlowDiagram from './landing/FlowDiagram';
 import DemoGalleryGrid from './landing/DemoGalleryGrid';
 import ConversionBridge from './landing/ConversionBridge';
 
-const ANDROID_APK_URL = '/app-debug.apk';
-const ANDROID_APK_FILENAME = 'AnimaStage-Lite-debug.apk';
 const SITE_URL = 'https://animastage-lite.app';
+
+/** Shipped with `npm run sync:android:assets` → public/app-debug.apk */
+const ANDROID_RELEASE = {
+  /** Root-relative — works on `/` and after deploy from `public/` */
+  url: '/app-debug.apk',
+  directUrl: `${SITE_URL}/app-debug.apk`,
+  downloadName: 'AnimaStage-Lite-1.1.0-landscape.apk',
+  version: '1.1.0',
+  versionCode: 2,
+  buildLabel: 'Jun 1, 2026',
+  sizeMb: 57.1,
+  sizeHint: '~57 MB',
+  minAndroid: 'Android 6.0+ (API 23)',
+  orientation: 'Landscape only',
+  whatsNew: [
+    'Updated Studio UI — design system, modular sidebar, empty-state onboarding',
+    'Stable performance HUD — frame time, CPU/GPU estimate, Smooth / Okay / Lagging',
+    'ZIP / folder import — up to 4 PMX/PMD characters, same as the browser',
+    'Generate Short, Camera Studio, Demo Gallery, MP4 export — full workflow',
+  ],
+  highlights: [
+    'Opens straight into Studio `/app` — no marketing page on launch',
+    'Landscape-first layout — sidebar, timeline, and viewport like desktop',
+    'Balanced WebView quality — GPU caps tuned for phones and tablets',
+    'Client-side only — PMX/VMD stay on your device, no account required',
+    'Same Bullet physics, timeline, and export stack as animastage-lite.app',
+  ],
+  requirements: [
+    'Phone or tablet in horizontal (landscape) orientation',
+    'Allow install from browser or Files app (sideload debug APK)',
+    'WebGL2-capable device; 4 GB+ RAM recommended for heavy PMX',
+    'Chrome-based browser engine (WebView) — best on Android 10+',
+  ],
+  installSteps: [
+    'Tap Download APK below (file: app-debug.apk, ~57 MB).',
+    'If blocked: Settings → Security → install unknown apps → allow your browser or Files.',
+    'Open the downloaded APK and tap Install.',
+    'Launch AnimaStage Lite — rotate to landscape; studio opens automatically.',
+  ],
+} as const;
 
 interface LandingPageProps {
   onStart: () => void;
@@ -37,6 +77,7 @@ const CORE_FEATURES = [
   { icon: Upload, title: 'Load PMX / PMD + VMD', desc: 'Drop your folder — see your character move in one step.' },
   { icon: Play, title: 'Real-time playback', desc: 'Watch dances instantly — no desktop MMD required.' },
   { icon: Video, title: 'MP4 export', desc: 'Ship Shorts or widescreen video from the same tab.' },
+  { icon: Smartphone, title: 'Android app', desc: 'v1.1.0 landscape APK — full studio on phone or tablet, direct download.' },
 ] as const;
 
 const ADVANCED_FEATURES = [
@@ -58,6 +99,10 @@ const FAQ = [
   {
     q: 'Are files uploaded to a server?',
     a: 'Core editing is client-side. Your models stay on your device.',
+  },
+  {
+    q: 'Is there an Android app?',
+    a: `Yes — download v${ANDROID_RELEASE.version} (${ANDROID_RELEASE.sizeHint}, landscape) from the Android section. It opens the full MMD studio on your phone or tablet with the same PMX/VMD workflow as the browser. Debug APK for sideload; no Google Play yet.`,
   },
 ] as const;
 
@@ -125,6 +170,10 @@ export default function LandingPage({
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
         description: 'MMD online — PMX viewer, VMD player browser, no install.',
         url: SITE_URL,
+        operatingSystem: 'Android, Web',
+        softwareVersion: ANDROID_RELEASE.version,
+        downloadUrl: ANDROID_RELEASE.directUrl,
+        fileSize: `${ANDROID_RELEASE.sizeMb}MB`,
       },
     ]);
     document.head.appendChild(script);
@@ -155,15 +204,34 @@ export default function LandingPage({
             <button type="button" onClick={() => scrollTo('features')} className="hover:text-white cursor-pointer transition-colors">
               Features
             </button>
+            <button type="button" onClick={() => scrollTo('android')} className="hover:text-white cursor-pointer transition-colors">
+              Android
+            </button>
             <a href="https://github.com/FBNonaMe/animastage-lite" target="_blank" rel="noreferrer" className="hover:text-white inline-flex items-center gap-1 transition-colors">
               <Github className="w-4 h-4" />
               GitHub
             </a>
           </nav>
 
-          <PrimaryBtn onClick={onStartDemo} className="!text-sm !py-2 !px-4">
-            Try Demo
-          </PrimaryBtn>
+          <div className="flex items-center gap-2 shrink-0 md:hidden">
+            <a
+              href={ANDROID_RELEASE.url}
+              download={ANDROID_RELEASE.downloadName}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-200 font-semibold text-xs px-3 py-2"
+              title={`Download Android v${ANDROID_RELEASE.version}`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              APK
+            </a>
+            <PrimaryBtn onClick={onStartDemo} className="!text-sm !py-2 !px-4">
+              Try Demo
+            </PrimaryBtn>
+          </div>
+          <div className="hidden md:block">
+            <PrimaryBtn onClick={onStartDemo} className="!text-sm !py-2 !px-4">
+              Try Demo
+            </PrimaryBtn>
+          </div>
         </div>
       </header>
 
@@ -180,7 +248,15 @@ export default function LandingPage({
                 </h1>
 
                 <p className="text-lg text-zinc-400 leading-relaxed max-w-xl mx-auto lg:mx-0 mb-8">
-                  Load PMX + VMD, preview animations instantly, and export video — all in one tab.
+                  Load PMX + VMD, preview animations instantly, and export video — in the browser or on{' '}
+                  <button
+                    type="button"
+                    onClick={() => scrollTo('android')}
+                    className="text-emerald-400/90 hover:text-emerald-300 font-medium underline-offset-2 hover:underline cursor-pointer"
+                  >
+                    Android v{ANDROID_RELEASE.version}
+                  </button>
+                  .
                 </p>
 
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center lg:justify-start mb-5">
@@ -192,6 +268,14 @@ export default function LandingPage({
                     <Upload className="w-4 h-4 text-cyan-400" />
                     Upload Your Model
                   </GhostBtn>
+                  <a
+                    href={ANDROID_RELEASE.url}
+                    download={ANDROID_RELEASE.downloadName}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/30 hover:bg-emerald-900/40 hover:border-emerald-400/50 text-emerald-100 font-semibold text-sm sm:text-base px-6 py-3.5 transition-all"
+                  >
+                    <Download className="w-4 h-4" />
+                    Android v{ANDROID_RELEASE.version}
+                  </a>
                 </div>
 
                 <div className="flex flex-col gap-2 mb-4">
@@ -240,8 +324,9 @@ export default function LandingPage({
               </div>
 
               <div className="glass-panel rounded-xl p-4 sm:p-5 border-amber-500/20 text-center">
-                <p className="text-base font-semibold text-zinc-100 mb-3">
-                  🔥 Your turn — try your own model
+                <p className="text-base font-semibold text-zinc-100 mb-3 flex items-center justify-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-400" aria-hidden />
+                  Your turn — try your own model
                 </p>
                 <GhostBtn onClick={onStart} className="mx-auto">
                   <Upload className="w-4 h-4 text-amber-400" />
@@ -314,7 +399,7 @@ export default function LandingPage({
             </div>
 
             <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Core</h3>
-            <div className="grid sm:grid-cols-3 gap-4 mb-12">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
               {CORE_FEATURES.map((f) => (
                 <div key={f.title} className="glass-panel rounded-2xl p-6">
                   <f.icon className="w-6 h-6 text-cyan-400 mb-4" strokeWidth={1.5} />
@@ -469,6 +554,140 @@ export default function LandingPage({
           </div>
         </section>
 
+        {/* § Android download */}
+        <section id="android" className="py-16 md:py-20 border-t border-white/5 bg-emerald-950/10 scroll-mt-16">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-10">
+              <SectionLabel>Android app</SectionLabel>
+              <h2 className="font-display font-bold text-3xl sm:text-4xl text-white mb-3">
+                Full MMD Studio on your phone
+              </h2>
+              <p className="text-zinc-400 text-sm sm:text-base max-w-2xl mx-auto">
+                Install <strong className="text-zinc-200 font-semibold">v{ANDROID_RELEASE.version}</strong> — the same
+                editor as animastage-lite.app, packaged for landscape WebView. Free debug APK, direct download below.
+              </p>
+            </div>
+
+            <div className="glass-panel rounded-2xl p-6 sm:p-8 border-emerald-500/25 mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 mb-6">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1">
+                      <Smartphone className="w-3.5 h-3.5" />
+                      Latest release
+                    </span>
+                    <span className="text-xs font-mono text-zinc-400">
+                      v{ANDROID_RELEASE.version} (build {ANDROID_RELEASE.versionCode})
+                    </span>
+                    <span className="text-xs text-zinc-600 hidden sm:inline">·</span>
+                    <span className="text-xs text-zinc-500">{ANDROID_RELEASE.buildLabel}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {[
+                      ANDROID_RELEASE.sizeHint,
+                      ANDROID_RELEASE.minAndroid,
+                      ANDROID_RELEASE.orientation,
+                      'Sideload APK',
+                    ].map((chip) => (
+                      <span
+                        key={chip}
+                        className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 bg-zinc-900/80 border border-white/5 rounded-md px-2 py-1"
+                      >
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                  <h3 className="font-display font-bold text-xl text-white mb-2">
+                    AnimaStage Lite — landscape studio
+                  </h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed max-w-xl">
+                    No Google Play yet — download the official debug build from this page. Opens directly into the
+                    editor: PMX/PMD/VMD import, timeline, Camera Studio, Generate Short, and MP4 export — 100%
+                    client-side.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto">
+                  <a
+                    href={ANDROID_RELEASE.url}
+                    download={ANDROID_RELEASE.downloadName}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-zinc-950 font-bold text-sm sm:text-base px-6 py-3.5 shadow-lg shadow-emerald-500/25 transition-all"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download APK ({ANDROID_RELEASE.sizeMb} MB)
+                  </a>
+                  <a
+                    href={ANDROID_RELEASE.url}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-950/20 hover:bg-emerald-900/30 text-emerald-200/90 font-semibold text-xs px-4 py-2.5 transition-all"
+                  >
+                    Open direct link
+                  </a>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/15 bg-emerald-950/20 p-4 sm:p-5 mb-6">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-300/90 mb-3">
+                  What&apos;s new in v{ANDROID_RELEASE.version}
+                </p>
+                <ul className="grid sm:grid-cols-2 gap-2">
+                  {ANDROID_RELEASE.whatsNew.map((line) => (
+                    <li key={line} className="flex items-start gap-2 text-sm text-zinc-300">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" aria-hidden />
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <ul className="grid sm:grid-cols-2 gap-2 mb-6">
+                {ANDROID_RELEASE.highlights.map((line) => (
+                  <li key={line} className="flex items-start gap-2 text-sm text-zinc-300">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" aria-hidden />
+                    {line}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="rounded-xl border border-white/5 bg-zinc-950/50 p-4 sm:p-5 mb-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">Requirements</p>
+                <ul className="space-y-2 text-sm text-zinc-400">
+                  {ANDROID_RELEASE.requirements.map((req) => (
+                    <li key={req} className="flex items-start gap-2">
+                      <Check className="w-3.5 h-3.5 text-zinc-500 mt-0.5 shrink-0" aria-hidden />
+                      {req}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <p className="text-[11px] text-zinc-500 mb-4 break-all">
+                File: <code className="text-zinc-400">{ANDROID_RELEASE.downloadName}</code>
+                {' · '}
+                URL:{' '}
+                <a href={ANDROID_RELEASE.url} className="text-emerald-400/90 hover:text-emerald-300">
+                  {ANDROID_RELEASE.directUrl}
+                </a>
+              </p>
+
+              <div className="rounded-xl border border-white/5 bg-zinc-950/50 p-4 sm:p-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">How to install</p>
+                <ol className="space-y-2 text-sm text-zinc-400 list-decimal list-inside">
+                  {ANDROID_RELEASE.installSteps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+
+            <p className="text-center text-xs text-zinc-500">
+              Prefer the browser?{' '}
+              <button type="button" onClick={onStart} className="text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer">
+                Open Studio in Chrome
+              </button>
+              {' '}— no install needed.
+            </p>
+          </div>
+        </section>
+
         {/* FAQ compact */}
         <section id="faq" className="py-12 border-t border-white/5 scroll-mt-16">
           <div className="max-w-xl mx-auto px-4 sm:px-6 space-y-3">
@@ -506,19 +725,28 @@ export default function LandingPage({
               </GhostBtn>
             </div>
             <a
-              href={ANDROID_APK_URL}
-              download={ANDROID_APK_FILENAME}
-              className="inline-flex items-center gap-2 mt-8 text-sm text-zinc-500 hover:text-emerald-400 transition-colors"
+              href={ANDROID_RELEASE.url}
+              download={ANDROID_RELEASE.downloadName}
+              className="inline-flex items-center gap-2 mt-8 text-sm font-semibold text-emerald-400/90 hover:text-emerald-300 transition-colors"
             >
               <Download className="w-4 h-4" />
-              Android APK
+              Download Android v{ANDROID_RELEASE.version}
             </a>
+            <p className="mt-2 text-xs text-zinc-600">
+              <button type="button" onClick={() => scrollTo('android')} className="hover:text-zinc-400 cursor-pointer">
+                Install guide &amp; release notes
+              </button>
+            </p>
           </div>
         </section>
       </main>
 
       <footer className="border-t border-white/5 py-8 text-center text-xs text-zinc-600">
         <p>
+          <a href="#android" className="text-zinc-400 hover:text-emerald-400">
+            Android v{ANDROID_RELEASE.version}
+          </a>
+          {' · '}
           <a href="https://github.com/FBNonaMe/animastage-lite" className="text-zinc-400 hover:text-cyan-400">
             GitHub
           </a>

@@ -11,11 +11,19 @@ void initAmmo().catch((error) => {
   console.warn('[MMD] Ammo preload failed — physics will stay disabled:', error);
 });
 import './utils/mmdCharsetPatch';
+import { bootstrapNativeRoute } from './native/nativeStudioBootstrap';
+import { initNativeShell } from './native/initNativeShell';
 import RootRouter from './RootRouter.tsx';
+import RootErrorBoundary from './RootErrorBoundary.tsx';
 import './index.css';
+
+bootstrapNativeRoute();
+void initNativeShell();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RootRouter />
+    <RootErrorBoundary>
+      <RootRouter />
+    </RootErrorBoundary>
   </StrictMode>,
 );

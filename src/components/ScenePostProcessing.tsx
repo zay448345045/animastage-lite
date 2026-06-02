@@ -1,10 +1,8 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import {
   Bloom,
   ChromaticAberration,
   DepthOfField,
-  EffectComposer,
-  GodRays,
   N8AO,
   SMAA,
   SSAO,
@@ -15,7 +13,11 @@ import * as THREE from 'three';
 import type { ViewportFormat, VisualFxSettings } from '../types';
 import type { RtxSettings } from '../utils/rtxSettings';
 import { getLitePostFxTuning, resolveBloomParams } from '../postfx/litePostFxConfig';
+import { usePostFxGlReady } from '../postfx/usePostFxGlReady';
+import PostFxDeferredComposer from '../postfx/PostFxDeferredComposer';
 import ModelDofFocus from './ModelDofFocus';
+import PostFxDirectRenderSync from './PostFxDirectRenderSync';
+
 interface ScenePostProcessingProps {
   visualFx: VisualFxSettings;
   modelOffset?: { x: number; y: number; z: number };
@@ -33,11 +35,9 @@ export default function ScenePostProcessing({
   rtxModeEnabled = false,
   rtxSettings,
   pauseRtx = false,
-  godRaySunRef,
 }: ScenePostProcessingProps) {
-  const focusTarget = useRef(new THREE.Vector3(0, 11, 0));
-  const internalSunRef = useRef<THREE.Mesh>(null);
-  const sunRef = godRaySunRef ?? internalSunRef;
+  const glReady = usePostFxGlReady();
+  const focusTarget = useMemo(() => new THREE.Vector3(0, 11, 0), []);
 
   const tuning = useMemo(
     () => getLitePostFxTuning(visualFx, viewportFormat, rtxModeEnabled, pauseRtx),
@@ -52,28 +52,74 @@ export default function ScenePostProcessing({
 
   const handleFocusPoint = useMemo(
     () => (point: THREE.Vector3) => {
-      focusTarget.current.copy(point);
+      focusTarget.copy(point);
     },
-    []
+    [focusTarget]
   );
-
-  if (!tuning.enableComposer) return null;
 
   const showBloom = tuning.bloom && (visualFx.bloomEnabled || rtxLive);
   const vignetteOpacity = visualFx.vignetteEnabled
     ? (visualFx.vignetteIntensity ?? 0.4) * 0.85
     : 0;
 
+  const needsNormalPass =
+    (tuning.ssao || rtxLive) && (visualFx.ssaoEnabled === true || rtxLive);
+
+  const hasPasses =
+    rtxLive ||
+    tuning.ssao ||
+    tuning.dof ||
+    showBloom ||
+    tuning.chromatic ||
+    (tuning.vignette && vignetteOpacity > 0.01) ||
+    tuning.smaa;
+
+  const composerActive = tuning.enableComposer && glReady && hasPasses;
+
+  const chromaticOffset = useMemo(
+    () =>
+      new THREE.Vector2(
+        visualFx.chromaticAberration ?? 0.001,
+        visualFx.chromaticAberration ?? 0.001
+      ),
+    [visualFx.chromaticAberration]
+  );
+
+  const composerKey = useMemo(
+    () =>
+      [
+        viewportFormat,
+        rtxLive ? 'rtx' : 'lite',
+        tuning.ssao ? 'ssao' : '',
+        tuning.dof ? 'dof' : '',
+        showBloom ? 'bloom' : '',
+        tuning.smaa ? 'smaa' : '',
+        tuning.vignette && vignetteOpacity > 0.01 ? 'vig' : '',
+      ].join('-'),
+    [
+      viewportFormat,
+      rtxLive,
+      tuning.ssao,
+      tuning.dof,
+      showBloom,
+      tuning.smaa,
+      tuning.vignette,
+      vignetteOpacity,
+    ]
+  );
+
   return (
     <>
-      {tuning.dof && (
-        <ModelDofFocus
-          enabled
-          modelOffset={modelOffset}
-          onFocusPoint={handleFocusPoint}
-        />
+      <PostFxDirectRenderSync composerEnabled={composerActive} />
+      {tuning.dof && composerActive && (
+        <ModelDofFocus enabled modelOffset={modelOffset} onFocusPoint={handleFocusPoint} />
       )}
-      <EffectComposer multisampling={tuning.multisampling} enableNormalPass>
+      <PostFxDeferredComposer
+        enabled={composerActive}
+        composerKey={composerKey}
+        multisampling={tuning.multisampling}
+        enableNormalPass={needsNormalPass}
+      >
         {rtxLive && rtxSettings ? (
           <N8AO
             aoRadius={rtxSettings.aoRadius}
@@ -97,24 +143,9 @@ export default function ScenePostProcessing({
           )
         )}
 
-        {tuning.godRays && sunRef.current && (
-          <GodRays
-            sun={sunRef}
-            blendFunction={BlendFunction.ADD}
-            samples={tuning.godRaysSamples}
-            density={tuning.godRaysDensity}
-            decay={tuning.godRaysDecay}
-            weight={0.35}
-            exposure={0.42}
-            clampMax={1}
-            resolutionScale={0.35}
-            blur
-          />
-        )}
-
         {tuning.dof && (
           <DepthOfField
-            target={focusTarget.current}
+            target={focusTarget}
             focusDistance={visualFx.dofFocusDistance ?? 0.03}
             focalLength={visualFx.dofFocalLength ?? 0.008}
             bokehScale={visualFx.dofBokehScale ?? 1.1}
@@ -134,12 +165,7 @@ export default function ScenePostProcessing({
 
         {tuning.chromatic && (
           <ChromaticAberration
-            offset={
-              new THREE.Vector2(
-                visualFx.chromaticAberration ?? 0.001,
-                visualFx.chromaticAberration ?? 0.001
-              )
-            }
+            offset={chromaticOffset}
             radialModulation
             modulationOffset={0.4}
           />
@@ -150,7 +176,7 @@ export default function ScenePostProcessing({
         )}
 
         {tuning.smaa && <SMAA />}
-      </EffectComposer>
+      </PostFxDeferredComposer>
     </>
   );
 }

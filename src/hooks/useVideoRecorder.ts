@@ -63,7 +63,14 @@ export function useVideoRecorder({
     async (frame: number) => {
       setPlayheadFrame(frame);
       invalidateScene?.();
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      // Let VMD pose + StageAutoFollow (snap while recording) render before capture.
+      await new Promise<void>((r) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => r());
+          });
+        });
+      });
     },
     [invalidateScene]
   );

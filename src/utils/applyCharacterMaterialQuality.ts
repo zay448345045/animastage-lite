@@ -3,7 +3,7 @@ import type { ViewportFormat } from '../types';
 import type { CharacterQuality } from './characterQuality';
 import { getCharacterQualityGpu } from './characterQuality';
 
-/** Sharper texture filtering for HD / 4K tiers. */
+/** Sharpen texture filtering for HD / 4K tiers. */
 export function applyCharacterMaterialQuality(
   root: THREE.Object3D,
   quality: CharacterQuality,
@@ -53,7 +53,13 @@ export function applyCharacterMaterialQuality(
         tex.needsUpdate = true;
       });
 
+      // Force shader recompilation when viewport format changes
       mat.needsUpdate = true;
+      
+      // If material is cached in WebGL, mark for recompile
+      if ((mat as any).program) {
+        (mat as any).program = null;
+      }
     });
   });
 }

@@ -44,7 +44,7 @@ async function parseVmdMetadata(file: File): Promise<VmdMetadata> {
   };
 }
 
-async function classifyVmdFiles(vmdFiles: File[]): Promise<{
+export async function classifyVmdFiles(vmdFiles: File[]): Promise<{
   motionVmds: File[];
   cameraVmd?: File;
 }> {
@@ -324,7 +324,7 @@ function tryExtensionAlternatives(
   return undefined;
 }
 
-function registerFileInMap(file: File, fileMap: Record<string, string>, blobUrl: string) {
+export function registerFileInMap(file: File, fileMap: Record<string, string>, blobUrl: string) {
   const relPath = getFileRelativePath(file);
   for (const variant of pathVariants(relPath)) {
     fileMap[variant] = blobUrl;
@@ -332,6 +332,15 @@ function registerFileInMap(file: File, fileMap: Record<string, string>, blobUrl:
   for (const variant of pathVariants(file.name)) {
     fileMap[variant] = blobUrl;
   }
+}
+
+/** Blob URLs for every file in a drop/folder (shared across multi-character import). */
+export function buildFileMapFromFiles(files: File[]): Record<string, string> {
+  const fileMap: Record<string, string> = {};
+  for (const file of files) {
+    registerFileInMap(file, fileMap, URL.createObjectURL(file));
+  }
+  return fileMap;
 }
 
 export function buildAssetIndex(fileMap: Record<string, string>): Map<string, string> {

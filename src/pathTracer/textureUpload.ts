@@ -198,9 +198,19 @@ export async function uploadTextureArray(
     } catch (error) {
       console.warn('[PathTracer] Texture upload failed for layer', i, tex.name ?? '', error);
     }
+
+    if (i > 0 && i % 2 === 0) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+      });
+    }
   }
 
-  await device.queue.onSubmittedWorkDone();
+  try {
+    await device.queue.onSubmittedWorkDone();
+  } catch {
+    /* device may be lost during heavy import */
+  }
 
   return {
     texture,

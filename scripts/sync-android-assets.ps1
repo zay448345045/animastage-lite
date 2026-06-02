@@ -26,6 +26,13 @@ if (Test-Path (Join-Path $Root "android\app\src\main\assets\capacitor.config.jso
   $cap | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $Root "android\app\src\main\assets\capacitor.config.json") -Encoding UTF8
 }
 
+Write-Host "Building debug APK..."
+Push-Location (Join-Path $Root "android")
+& .\gradlew.bat assembleDebug
+$gradleExit = $LASTEXITCODE
+Pop-Location
+if ($gradleExit -ne 0) { exit $gradleExit }
+
 $apkSrc = Join-Path $Root "android\app\build\outputs\apk\debug\app-debug.apk"
 $apkDst = Join-Path $Root "public\app-debug.apk"
 if (Test-Path $apkSrc) {

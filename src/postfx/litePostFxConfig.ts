@@ -32,17 +32,16 @@ export function getLitePostFxTuning(
   const master = visualFx.postFxStackEnabled !== false;
   const cinematic =
     master &&
-    (visualFx.ssaoEnabled ||
-      visualFx.smaaEnabled ||
-      visualFx.godRaysEnabled ||
-      visualFx.bloomEnabled ||
-      visualFx.dofEnabled ||
-      visualFx.vignetteEnabled ||
+    (visualFx.ssaoEnabled === true ||
+      visualFx.smaaEnabled !== false ||
+      visualFx.bloomEnabled === true ||
+      visualFx.dofEnabled === true ||
+      visualFx.vignetteEnabled === true ||
       rtxLive);
 
   if (portrait) {
     return {
-      enableComposer: master && (visualFx.smaaEnabled || visualFx.vignetteEnabled),
+      enableComposer: master && (visualFx.smaaEnabled !== false || visualFx.vignetteEnabled === true),
       ssao: false,
       smaa: visualFx.smaaEnabled !== false,
       godRays: false,
@@ -63,10 +62,12 @@ export function getLitePostFxTuning(
 
   return {
     enableComposer: cinematic,
-    ssao: visualFx.ssaoEnabled !== false && master,
+    /** SSAO only when explicitly on — avoids composer init races on template apply. */
+    ssao: visualFx.ssaoEnabled === true && master,
     smaa: visualFx.smaaEnabled !== false,
-    godRays: visualFx.godRaysEnabled !== false && master,
-    bloom: visualFx.bloomEnabled || rtxLive,
+    /** God rays disabled — unstable with @react-three/postprocessing (null material.alpha). */
+    godRays: false,
+    bloom: visualFx.bloomEnabled === true || rtxLive,
     dof: visualFx.dofEnabled === true,
     vignette: visualFx.vignetteEnabled !== false,
     chromatic: (visualFx.chromaticAberration ?? 0) > 0.0001,

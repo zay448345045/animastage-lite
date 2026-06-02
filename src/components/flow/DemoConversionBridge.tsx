@@ -1,4 +1,5 @@
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Flame } from 'lucide-react';
+import { Button, Panel } from '../UI';
 
 interface DemoConversionBridgeProps {
   visible: boolean;
@@ -18,33 +19,31 @@ export default function DemoConversionBridge({
       className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-[min(100%,22rem)] px-3 pointer-events-none"
       role="status"
     >
-      <div className="pointer-events-auto rounded-xl border border-orange-500/40 bg-[#1a1410]/95 backdrop-blur-md shadow-xl shadow-black/50 px-4 py-3 flex items-start gap-3">
-        <span className="text-lg leading-none mt-0.5" aria-hidden>
-          🔥
-        </span>
+      <Panel className="pointer-events-auto flex items-start gap-[var(--space-md)] border-[var(--color-warning)]/30 shadow-xl shadow-black/40 !p-[var(--space-md)]">
+        <Flame className="w-5 h-5 text-[var(--color-warning)] shrink-0 mt-0.5" aria-hidden />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-orange-100">Your turn — try your own model</p>
-          <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
+          <p className="text-[var(--font-size-lg)] font-semibold text-[var(--color-text-main)] m-0">
+            Your turn — try your own model
+          </p>
+          <p className="text-[var(--font-size-sm)] text-[var(--color-text-secondary)] mt-1 mb-0 leading-snug">
             Drop PMX + VMD on the viewport. Playback keeps running.
           </p>
-          <button
-            type="button"
-            onClick={onUpload}
-            className="mt-2.5 inline-flex items-center gap-1.5 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-bold px-3 py-2 rounded-lg cursor-pointer w-full justify-center"
-          >
+          <Button type="button" variant="primary" className="w-full mt-[var(--space-md)]" onClick={onUpload}>
             <Upload className="w-3.5 h-3.5" />
             Upload PMX / VMD
-          </button>
+          </Button>
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={onDismiss}
-          className="p-1 text-zinc-500 hover:text-zinc-200 cursor-pointer shrink-0"
           aria-label="Dismiss"
+          className="!p-1 shrink-0"
         >
           <X className="w-4 h-4" />
-        </button>
-      </div>
+        </Button>
+      </Panel>
     </div>
   );
 }
