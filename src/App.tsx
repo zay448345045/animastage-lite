@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Video } from 'lucide-react';
+import { Video } from 'lucide-react';
 import TopMenu from './components/TopMenu';
 import Sidebar from './components/Sidebar';
 import Viewport from './components/Viewport';
@@ -51,8 +51,17 @@ import { addCustomPose } from './pose/poseStorage';
 import { mergeTimelineKeyframes } from './components/TimelineLogic';
 import { useCollab } from './hooks/useCollab';
 import type { CollabClipPayload } from './collab/collabSync';
-import { useIsMobileStudio } from './hooks/useMediaQuery';
-import MobileStudioBar from './components/MobileStudioBar';
+import { useStudioLayout } from './hooks/useStudioLayout';
+import type { MobilePanelTab } from './hooks/useStudioLayout';
+import FxSettingsPanel from './components/FxSettingsPanel';
+import DesktopLayout from './layout/DesktopLayout';
+import ProMobileShell from './layout/proMobile/ProMobileShell';
+import type { ProMobileTab } from './layout/proMobile/types';
+import { getMobileSafeStatePatch } from './config/mobileSafeMode';
+import {
+  enableMobileRuntimeCaps,
+  disableMobileRuntimeCaps,
+} from './perf/mobileRuntimeCaps';
 import DemoGalleryOverlay from './components/gallery/DemoGalleryOverlay';
 import { applyInstantDemoState } from './demos/applyInstantDemo';
 import { buildInstantDemoModel } from './demos/buildDemoModel';
@@ -155,20 +164,17 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
   const clipEditor = useClipEditor();
 
   // UI responsive styling state
-  const isMobile = useIsMobileStudio();
+  const layout = useStudioLayout();
+  const isMobileLayout = layout.isMobileLayout;
+  const isMobile = layout.isCompactStudio;
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [showTimelinePanel, setShowTimelinePanel] = useState(true);
+  const prevMobileLayoutRef = useRef(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobilePanelTab, setMobilePanelTab] = useState<MobilePanelTab>('scene');
+  const mobileSafeAppliedRef = useRef(false);
   const [openTopMenuId, setOpenTopMenuId] = useState<string | null>(null);
   const [analyzingModel, setAnalyzingModel] = useState(false);
-
-  useEffect(() => {
-    if (isMobile) {
-      document.documentElement.classList.add('compact-studio');
-    } else {
-      document.documentElement.classList.remove('compact-studio');
-    }
-  }, [isMobile]);
 
   // Viewport setup states (passed to TopMenu & Viewport)
   const [showGrid, setShowGrid] = useState(true);
@@ -218,7 +224,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
   }, [isViewer]);
 
   useEffect(() => {
-    if (isMobile) {
+    if (layout.isCompactStudio) {
       setShowLeftSidebar(false);
       setShowTimelinePanel(false);
       return;
@@ -228,7 +234,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
     setShowTimelinePanel(true);
     setMobileNavOpen(false);
     setOpenTopMenuId(null);
-  }, [isMobile, isViewer]);
+  }, [layout.isCompactStudio, isViewer]);
 
   const handleViewportFormatChange = useCallback(
     (format: ViewportFormat) => {
@@ -348,6 +354,31 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
   applyTemplateRef.current = (id) => void product.handleApplySceneTemplate(id);
   runAutoBeautifyRef.current = product.runAutoBeautify;
   applyAssetOptimizationsRef.current = product.applyAssetOptimizations;
+
+  useEffect(() => {
+    if (isMobileLayout && !prevMobileLayoutRef.current) {
+      setShowLeftSidebar(false);
+      setShowTimelinePanel(false);
+    }
+    if (!isMobileLayout && prevMobileLayoutRef.current) {
+      setShowLeftSidebar(true);
+      setShowTimelinePanel(true);
+    }
+    prevMobileLayoutRef.current = isMobileLayout;
+  }, [isMobileLayout]);
+
+  useEffect(() => {
+    if (!layout.applyMobileSafeMode) {
+      mobileSafeAppliedRef.current = false;
+      disableMobileRuntimeCaps();
+      return;
+    }
+    enableMobileRuntimeCaps();
+    if (mobileSafeAppliedRef.current) return;
+    mobileSafeAppliedRef.current = true;
+    setAppState((prev) => ({ ...prev, ...getMobileSafeStatePatch(prev) }));
+    product.handleQualityModeChange('performance');
+  }, [layout.applyMobileSafeMode, product]);
 
   useEffect(() => {
     if (isViewer || appState.models.length === 0) return;
@@ -723,12 +754,12 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
 
         setActiveDemoId(demoId);
         setShowDemoGallery(false);
-        if (isMobile) setShowLeftSidebar(false);
+        if (isMobileLayout) setShowLeftSidebar(false);
       } finally {
         setDemoLoadingId(null);
       }
     },
-    [revokeAllModelBlobs, handleLoadCustomModel, viewportFormat, handleViewportFormatChange, isMobile]
+    [revokeAllModelBlobs, handleLoadCustomModel, viewportFormat, handleViewportFormatChange, isMobileLayout]
   );
 
   loadDemoSceneRef.current = handleLoadDemoScene;
@@ -1140,9 +1171,252 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
     });
   };
 
+  const studioSidebar = (opts: {
+    mobile: boolean;
+    embedded?: boolean;
+    proMobileSheet?: boolean;
+    tab?: MobilePanelTab;
+  }) => (
+    <Sidebar
+      beginnerMode={isBeginnerMode(product.uiMode)}
+      isMobile={opts.mobile}
+      embedded={opts.embedded}
+      proMobileSheet={opts.proMobileSheet}
+      mobileTab={opts.tab ?? mobilePanelTab}
+      onClose={() => setShowLeftSidebar(false)}
+      onMobileTabChange={setMobilePanelTab}
+      onSetCameraMode={setCameraMode}
+      onToggleManualCameraLock={() => product.toggleManualCameraLock()}
+      appState={appState}
+      sceneGraph={product.sceneGraph}
+      lockedObjectIds={product.lockedObjectIds}
+      onSceneGraphToggleVisibility={product.handleSceneGraphToggleVisibility}
+      onSceneGraphToggleLock={product.handleSceneGraphToggleLock}
+      onSceneGraphCreateGroup={product.handleSceneGraphCreateGroup}
+      onSelectModel={(id) => {
+        if (product.lockedObjectIds.has(id)) return;
+        setAppState((prev) => ({ ...prev, selectedObjectId: id }));
+      }}
+      onSelectBone={(id) => setAppState((prev) => ({ ...prev, selectedBoneId: id }))}
+      onToggleVisibility={handleToggleVisibility}
+      onDeleteModel={handleDeleteModel}
+      onModifyMorphs={handleModifyMorphs}
+      onModifyBone={handleModifyBone}
+      onModifyModelPosition={handleModifyModelPosition}
+      onRegisterKeyframe={handleRegisterKeyframe}
+      onLoadModel={handleLoadModel}
+      onLoadCustomModel={handleLoadCustomModel}
+      setPhysicsMode={(mode) => setAppState((prev) => ({ ...prev, physicsMode: mode }))}
+      onSetVmdPlaybackEnabled={handleSetVmdPlaybackEnabled}
+      onPatchMmdLite={handlePatchMmdLite}
+      highlightMaterial={highlightMaterial}
+      onSelectMaterial={setHighlightMaterial}
+      onSelectPmxBone={editor.handleSelectPmxBone}
+      collabConnected={collab.connected}
+      collabRoom={collab.roomId}
+      collabPeers={collab.peers}
+      collabStatus={collab.status}
+      onCollabJoin={collab.join}
+      onCollabLeave={collab.leave}
+      onApplyKeyframes={handleApplyKeyframes}
+      onUpdateAnimLayers={handleUpdateAnimLayers}
+      onToggleGroupSolo={handleToggleGroupSolo}
+      onToggleGroupMute={handleToggleGroupMute}
+      maxFrames={appState.maxFrames}
+      onApplyPose={handleApplyPose}
+      onCapturePose={handleCapturePose}
+      onClearPoseHold={handleClearPoseHold}
+      onReanalyzeModel={handleReanalyzeModel}
+      analyzingModel={analyzingModel}
+      onLoadDemo={(id) => void handleLoadDemoScene(id)}
+      demoLoadingId={demoLoadingId}
+      activeDemoId={activeDemoId}
+      onOpenDemoGallery={() => setShowDemoGallery(true)}
+    />
+  );
+
+  const proFxPanel = (
+    <FxSettingsPanel
+      visualFx={appState.visualFx}
+      mmdLite={appState.mmdLite}
+      rtxModeEnabled={appState.rtxModeEnabled}
+      rtxSettings={appState.rtxSettings}
+      characterQuality={appState.characterQuality}
+      viewportFormat={viewportFormat}
+      onSetVisualFx={setVisualFx}
+      onPatchMmdLite={handlePatchMmdLite}
+      onSetRtxModeEnabled={(enabled) => setAppState((s) => ({ ...s, rtxModeEnabled: enabled }))}
+      onPatchRtxSettings={handlePatchRtxSettings}
+      onCharacterQualityChange={(characterQuality) =>
+        setAppState((s) => ({ ...s, characterQuality }))
+      }
+      captureCamera={() => captureCameraRef.current?.() ?? null}
+      onFlyToBookmark={(snapshot) => {
+        setCameraMode('free');
+        flyToCameraRef.current?.(snapshot);
+      }}
+      onRestartPhysics={() => modelApiRef.current?.restartPhysics()}
+      videoRecordBusy={videoRecorder.busy}
+      videoRecordMode={videoRecorder.mode}
+      onRenderMp4={handleRenderMp4}
+      onLiveRecord={handleLiveRecord}
+    />
+  );
+
+  const proSceneTitle =
+    appState.models.find((m) => m.id === appState.selectedObjectId)?.name ??
+    appState.models[0]?.name ??
+    (activeDemoId ? 'Demo scene' : 'AnimaStage Lite');
+
+  const editorTimelineShell = (
+    <EditorTimelineShell
+      embeddedInSheet={layout.isMobileLayout}
+      appState={appState}
+      setCurrentFrame={handleSetCurrentFrame}
+      setMaxFrames={handleSetMaxFrames}
+      setIsPlaying={handleSetIsPlaying}
+      onRegisterKeyframe={handleRegisterKeyframe}
+      onDeleteKeyframe={handleDeleteKeyframe}
+      onSelectTrack={setTimelineActiveTrack}
+      onApplyTemplate={handleApplyTemplate}
+      onClearAllKeyframes={handleClearAllKeyframes}
+      onMoveKeyframe={editor.handleMoveKeyframe}
+      onPatchKeyframe={editor.handlePatchKeyframe}
+      activeTrack={
+        appState.timelineActiveTrack && appState.timelineActiveTrack !== 'camera'
+          ? (appState.timelineActiveTrack as TimelineTrackId)
+          : null
+      }
+    />
+  );
+
+  const viewportColumn = (
+    <div className="studio-viewport-column flex-1 flex flex-col overflow-hidden relative min-h-0 min-w-0">
+      <Viewport
+        appState={appState}
+        mmdLite={appState.mmdLite}
+        viewportFormat={viewportFormat}
+        onViewportFormatChange={handleViewportFormatChange}
+        onSetIsPlaying={handleSetIsPlaying}
+        onSetCurrentFrame={handleSetCurrentFrame}
+        onApplyAnimationTemplate={handleApplyTemplate}
+        sceneBackground={appState.sceneBackground}
+        onPatchSceneBackground={handlePatchSceneBackground}
+        onClearSceneBackground={handleClearSceneBackground}
+        showGrid={showGrid}
+        showBones={showBones}
+        showCameraHelper={showCameraHelper}
+        showPhysicsBodies={showPhysicsBodies}
+        onSelectBone={(id) => setAppState((prev) => ({ ...prev, selectedBoneId: id }))}
+        onBoneTransform={handleBoneTransform}
+        onModelMove={handleModelMove}
+        onLoadCustomModel={isViewer ? undefined : handleLoadCustomModel}
+        onModelAnimationLoaded={handleModelAnimationLoaded}
+        captureCameraRef={captureCameraRef}
+        flyToCameraRef={flyToCameraRef}
+        modelApiRef={modelApiRef}
+        sceneHdr={appState.sceneHdr}
+        onHdrFileDrop={handleHdrFileDrop}
+        onSetCameraMode={setCameraMode}
+        onPatchCameraStudio={(patch) =>
+          setAppState((prev) => ({
+            ...prev,
+            cameraStudio: { ...prev.cameraStudio, ...patch },
+          }))
+        }
+        isRecordingVideo={videoRecorder.isRecording}
+        onRecordingTick={videoRecorder.tickLiveRecord}
+        onGlCanvasReady={(canvas) => {
+          glCanvasRef.current = canvas;
+        }}
+        onInvalidateReady={(fn) => {
+          invalidateSceneRef.current = fn;
+        }}
+        highlightMaterialName={highlightMaterial}
+        onPmxMetadataLoaded={editor.handlePmxMetadata}
+        onTryDemo={
+          isViewer
+            ? undefined
+            : () => {
+                product.dismissOnboarding();
+                void handleLoadDemoScene(FEATURED_DEMO_ID);
+              }
+        }
+      />
+      {!isViewer && !layout.isMobileLayout ? (
+        <ResultFirstBar
+          visible={product.showResultFirst && appState.models.length > 0}
+          onEdit={() => {
+            product.dismissResultFirst();
+            product.handleUiModeChange('pro');
+            setShowLeftSidebar(true);
+          }}
+          onGenerateShort={product.openShortsSetup}
+          onDismiss={product.dismissResultFirst}
+        />
+      ) : null}
+      {!isViewer && (
+        <ShortsSetupDialog
+          open={product.shortsSetupOpen}
+          models={appState.models.map((m) => ({
+            id: m.id,
+            name: m.name,
+            vmdFileNames: m.vmdFileNames ?? [],
+            activeVmdIndex: m.activeVmdIndex ?? 0,
+          }))}
+          durationSec={product.shortsDurationSec}
+          busy={product.shortsGenerating}
+          onDurationChange={product.setShortsDurationSec}
+          onSelectVmd={product.setModelActiveVmdIndex}
+          onAddVmdFiles={(modelId, files) => {
+            void product.appendModelVmdFiles(modelId, files);
+          }}
+          onGenerate={product.confirmCreateShort}
+          onClose={product.closeShortsSetup}
+        />
+      )}
+      {!isViewer && (
+        <ProductShortsFlow
+          ref={shortsFlowRef}
+          durationSec={product.shortsDurationSec}
+          manualCameraLock={product.manualCameraLock}
+          onShare={() => handleShareSceneRef.current()}
+          onExportVideo={handleRenderMp4}
+          onAutoFrame={product.frameShortCamera}
+          onToggleManualCamera={product.toggleManualCameraLock}
+        />
+      )}
+      {isViewer && initialProject && (
+        <ViewerForkBar onEditThis={() => product.handleForkToEditor(initialProject)} />
+      )}
+      <RecordingHud
+        visible={videoRecorder.isRecording}
+        progress={videoRecorder.progress}
+        mode={videoRecorder.mode}
+        onCancel={videoRecorder.cancel}
+      />
+      {!layout.isMobileLayout &&
+        !isViewer &&
+        shouldShowTimeline(product.uiMode, showTimelinePanel) &&
+        editorTimelineShell}
+      {!layout.isMobileLayout && !isViewer && (
+        <button
+          type="button"
+          onClick={() => setShowTimelinePanel(!showTimelinePanel)}
+          className="absolute bottom-4 right-4 bg-[#1a1d24] border border-[#2c3240] py-1.5 px-3 text-xs font-bold text-zinc-300 hover:text-[#39c5bb] hover:border-[#39c5bb]/40 active:bg-[#121418] z-20 flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+        >
+          <Video className="w-3.5 h-3.5" />
+          {showTimelinePanel ? 'Hide Timeline' : 'Show Timeline'}
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div
-      className={`flex flex-col h-screen w-screen font-sans cursor-default overflow-hidden text-[var(--color-text-main)]${isMobile ? ' compact-studio' : ''}`}
+      className={`flex flex-col h-[100dvh] w-screen font-sans cursor-default overflow-hidden text-[var(--color-text-main)] ${
+        layout.isMobileLayout ? 'studio-mobile-column studio-pro-mobile' : ''
+      } ${layout.isMobileLandscape ? 'studio-mobile-landscape' : ''}`}
       style={{ background: 'var(--color-bg)' }}
       id="mmd-workspace-main"
     >
@@ -1158,7 +1432,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
           {product.toast}
         </div>
       )}
-      {!isViewer && isBeginnerMode(product.uiMode) && (
+      {!isViewer && isBeginnerMode(product.uiMode) && !layout.isMobileLayout && (
         <TemplatePicker
           beginnerMode
           onApplyTemplate={(id) => applyTemplateRef.current(id)}
@@ -1189,9 +1463,9 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
           </div>
         </div>
       )}
-      {!isViewer && (
+      {!isViewer && !layout.isMobileLayout && (
         <StudioFlowBar
-          compact={isMobile}
+          compact={false}
           uiMode={product.uiMode}
           onUiModeChange={product.handleUiModeChange}
           onSaveProject={product.handleSaveProject}
@@ -1199,6 +1473,11 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
           onLoadProjectFile={() => projectFileInputRef.current?.click()}
           onShareScene={() => void product.handleShareScene()}
           onCreateShort={product.openShortsSetup}
+          onTryDemo={() => {
+            product.dismissOnboarding();
+            void handleLoadDemoScene(FEATURED_DEMO_ID);
+          }}
+          onExportMp4={handleRenderMp4}
           hasSavedProject={product.hasSaved}
           qualityMode={product.qualityMode}
           onQualityModeChange={product.handleQualityModeChange}
@@ -1214,7 +1493,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
         activeDemoId={activeDemoId}
       />
       )}
-      {!isViewer && !isBeginnerMode(product.uiMode) && (
+      {!isViewer && !isBeginnerMode(product.uiMode) && !layout.isMobileLayout && (
       <TopMenu 
         physicsMode={appState.physicsMode}
         setPhysicsMode={(mode) => setAppState(prev => ({ ...prev, physicsMode: mode }))}
@@ -1277,11 +1556,15 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
           const currentlyOn = model.vmdPlaybackEnabled !== false;
           handleSetVmdPlaybackEnabled(id, !currentlyOn);
         }}
-        isMobile={isMobile}
+        isMobile={isMobileLayout}
         mobileNavOpen={mobileNavOpen}
         onMobileNavOpenChange={setMobileNavOpen}
         openMenuId={openTopMenuId}
         onOpenMenuIdChange={setOpenTopMenuId}
+        onTryDemo={() => {
+          product.dismissOnboarding();
+          void handleLoadDemoScene(FEATURED_DEMO_ID);
+        }}
       />
       )}
 
@@ -1301,249 +1584,77 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
         </div>
       )}
 
-      {/* 2. Middle section (Sidebar + Viewport) */}
+      {/* 2. Middle section — MobileLayout (≤768px) vs DesktopLayout (≥769px) */}
       <div className="flex-1 flex overflow-hidden relative min-h-0">
-        {isMobile && showLeftSidebar && (
-          <button
-            type="button"
-            className="studio-sidebar-backdrop cursor-pointer"
-            aria-label="Close panel overlay"
-            onClick={() => setShowLeftSidebar(false)}
-          />
-        )}
-
-        {!isViewer && !isMobile && (
-          <button
-            type="button"
-            onClick={() => setShowLeftSidebar(!showLeftSidebar)}
-            className="absolute left-0 top-1/2 -translate-y-1/2 bg-[#1a1d24] border border-[#2c3240] p-1.5 text-zinc-400 hover:text-[#39c5bb] hover:border-[#39c5bb]/40 z-30 transition-all shadow-md cursor-pointer"
-            title={showLeftSidebar ? 'Collapse panel' : 'Expand panel'}
-          >
-            {showLeftSidebar ? <ChevronLeft className="w-4 h-4 font-bold" /> : <ChevronRight className="w-4 h-4 font-bold" />}
-          </button>
-        )}
-
-        {!isViewer && showLeftSidebar && (
-          <Sidebar
-            beginnerMode={isBeginnerMode(product.uiMode)}
-            isMobile={isMobile}
-            onClose={() => setShowLeftSidebar(false)}
-            appState={appState}
-            sceneGraph={product.sceneGraph}
-            lockedObjectIds={product.lockedObjectIds}
-            onSceneGraphToggleVisibility={product.handleSceneGraphToggleVisibility}
-            onSceneGraphToggleLock={product.handleSceneGraphToggleLock}
-            onSceneGraphCreateGroup={product.handleSceneGraphCreateGroup}
-            onSelectModel={(id) => {
-              if (product.lockedObjectIds.has(id)) return;
-              setAppState(prev => ({ ...prev, selectedObjectId: id }));
-            }}
-            onSelectBone={(id) => setAppState(prev => ({ ...prev, selectedBoneId: id }))}
-            onToggleVisibility={handleToggleVisibility}
-            onDeleteModel={handleDeleteModel}
-            onModifyMorphs={handleModifyMorphs}
-            onModifyBone={handleModifyBone}
-            onModifyModelPosition={handleModifyModelPosition}
-            onRegisterKeyframe={handleRegisterKeyframe}
-            onLoadModel={handleLoadModel}
-            onLoadCustomModel={handleLoadCustomModel}
-            setPhysicsMode={(mode) => setAppState(prev => ({ ...prev, physicsMode: mode }))}
-            onSetVmdPlaybackEnabled={handleSetVmdPlaybackEnabled}
-            onPatchMmdLite={handlePatchMmdLite}
-            highlightMaterial={highlightMaterial}
-            onSelectMaterial={setHighlightMaterial}
-            onSelectPmxBone={editor.handleSelectPmxBone}
-            collabConnected={collab.connected}
-            collabRoom={collab.roomId}
-            collabPeers={collab.peers}
-            collabStatus={collab.status}
-            onCollabJoin={collab.join}
-            onCollabLeave={collab.leave}
-            onApplyKeyframes={handleApplyKeyframes}
-            onUpdateAnimLayers={handleUpdateAnimLayers}
-            onToggleGroupSolo={handleToggleGroupSolo}
-            onToggleGroupMute={handleToggleGroupMute}
-            maxFrames={appState.maxFrames}
-            onApplyPose={handleApplyPose}
-            onCapturePose={handleCapturePose}
-            onClearPoseHold={handleClearPoseHold}
-            onReanalyzeModel={handleReanalyzeModel}
-            analyzingModel={analyzingModel}
-            onLoadDemo={(id) => void handleLoadDemoScene(id)}
-            demoLoadingId={demoLoadingId}
-            activeDemoId={activeDemoId}
-            onOpenDemoGallery={() => setShowDemoGallery(true)}
-          />
-        )}
-
-        {/* Main 3D staging platform column */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          
-          <Viewport 
-            compactStudio={isMobile}
-            appState={appState}
-            mmdLite={appState.mmdLite}
-            viewportFormat={viewportFormat}
-            onViewportFormatChange={handleViewportFormatChange}
-            onSetIsPlaying={handleSetIsPlaying}
-            onSetCurrentFrame={handleSetCurrentFrame}
-            onApplyAnimationTemplate={handleApplyTemplate}
-            sceneBackground={appState.sceneBackground}
-            onPatchSceneBackground={handlePatchSceneBackground}
-            onClearSceneBackground={handleClearSceneBackground}
-            showGrid={showGrid}
-            showBones={showBones}
-            showCameraHelper={showCameraHelper}
-            showPhysicsBodies={showPhysicsBodies}
-            onSelectBone={(id) => setAppState(prev => ({ ...prev, selectedBoneId: id }))}
-            onBoneTransform={handleBoneTransform}
-            onModelMove={handleModelMove}
-            onLoadCustomModel={isViewer ? undefined : handleLoadCustomModel}
-            onModelAnimationLoaded={handleModelAnimationLoaded}
-            captureCameraRef={captureCameraRef}
-            flyToCameraRef={flyToCameraRef}
-            modelApiRef={modelApiRef}
-            sceneHdr={appState.sceneHdr}
-            onHdrFileDrop={handleHdrFileDrop}
-            onSetCameraMode={setCameraMode}
-            onPatchCameraStudio={(patch) =>
-              setAppState((prev) => ({
-                ...prev,
-                cameraStudio: { ...prev.cameraStudio, ...patch },
-              }))
+        {!isViewer && layout.isMobileLayout ? (
+          <ProMobileShell
+            sceneTitle={proSceneTitle}
+            viewport={viewportColumn}
+            hasModel={appState.models.length > 0}
+            isPlaying={appState.isPlaying}
+            manualOrbit={
+              appState.cameraMode === 'free' || appState.cameraStudio.manualCameraLock
             }
-            isRecordingVideo={videoRecorder.isRecording}
-            onRecordingTick={videoRecorder.tickLiveRecord}
-            onGlCanvasReady={(canvas) => {
-              glCanvasRef.current = canvas;
-            }}
-            onInvalidateReady={(fn) => {
-              invalidateSceneRef.current = fn;
-            }}
-            highlightMaterialName={highlightMaterial}
-            onPmxMetadataLoaded={editor.handlePmxMetadata}
-            onTryDemo={
-              isViewer
-                ? undefined
-                : () => {
-                    product.dismissOnboarding();
-                    void handleLoadDemoScene(FEATURED_DEMO_ID);
-                  }
-            }
-          />
-
-          {!isViewer && (
-            <ResultFirstBar
-              visible={product.showResultFirst && appState.models.length > 0}
-              onEdit={() => {
-                product.dismissResultFirst();
-                product.handleUiModeChange('pro');
-                setShowLeftSidebar(true);
-              }}
-              onGenerateShort={product.openShortsSetup}
-            />
-          )}
-          {!isViewer && (
-            <ShortsSetupDialog
-              open={product.shortsSetupOpen}
-              models={appState.models.map((m) => ({
-                id: m.id,
-                name: m.name,
-                vmdFileNames: m.vmdFileNames ?? [],
-                activeVmdIndex: m.activeVmdIndex ?? 0,
-              }))}
-              durationSec={product.shortsDurationSec}
-              busy={product.shortsGenerating}
-              onDurationChange={product.setShortsDurationSec}
-              onSelectVmd={product.setModelActiveVmdIndex}
-              onAddVmdFiles={(modelId, files) => {
-                void product.appendModelVmdFiles(modelId, files);
-              }}
-              onGenerate={product.confirmCreateShort}
-              onClose={product.closeShortsSetup}
-            />
-          )}
-          {!isViewer && (
-            <ProductShortsFlow
-              ref={shortsFlowRef}
-              durationSec={product.shortsDurationSec}
-              manualCameraLock={product.manualCameraLock}
-              onShare={() => handleShareSceneRef.current()}
-              onExportVideo={handleRenderMp4}
-              onAutoFrame={product.frameShortCamera}
-              onToggleManualCamera={product.toggleManualCameraLock}
-            />
-          )}
-          {isViewer && initialProject && (
-            <ViewerForkBar
-              onEditThis={() => product.handleForkToEditor(initialProject)}
-            />
-          )}
-
-          <RecordingHud
-            visible={videoRecorder.isRecording}
-            progress={videoRecorder.progress}
-            mode={videoRecorder.mode}
-            onCancel={videoRecorder.cancel}
-          />
-
-          {/* Collapsible helper for horizontal timeline */}
-          {!isViewer && shouldShowTimeline(product.uiMode, showTimelinePanel) && (
-            <EditorTimelineShell
-              appState={appState}
-              setCurrentFrame={handleSetCurrentFrame}
-              setMaxFrames={handleSetMaxFrames}
-              setIsPlaying={handleSetIsPlaying}
-              onRegisterKeyframe={handleRegisterKeyframe}
-              onDeleteKeyframe={handleDeleteKeyframe}
-              onSelectTrack={setTimelineActiveTrack}
-              onApplyTemplate={handleApplyTemplate}
-              onClearAllKeyframes={handleClearAllKeyframes}
-              onMoveKeyframe={editor.handleMoveKeyframe}
-              onPatchKeyframe={editor.handlePatchKeyframe}
-              activeTrack={
-                appState.timelineActiveTrack &&
-                appState.timelineActiveTrack !== 'camera'
-                  ? (appState.timelineActiveTrack as TimelineTrackId)
-                  : null
+            onTogglePlay={() => handleSetIsPlaying(!appState.isPlaying)}
+            onToggleOrbit={() => {
+              if (appState.cameraMode === 'mmd') {
+                product.toggleManualCameraLock();
+              } else {
+                setCameraMode('mmd');
               }
-            />
-          )}
-
-          {/* Desktop: toggle timeline */}
-          {!isViewer && !isMobile && (
-            <button
-              type="button"
-              onClick={() => setShowTimelinePanel(!showTimelinePanel)}
-              className="absolute bottom-4 right-4 bg-[#1a1d24] border border-[#2c3240] py-1.5 px-3 text-xs font-bold text-zinc-300 hover:text-[#39c5bb] hover:border-[#39c5bb]/40 active:bg-[#121418] z-20 flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
-            >
-              <Video className="w-3.5 h-3.5" />
-              {showTimelinePanel ? 'Hide Timeline' : 'Show Timeline'}
-            </button>
-          )}
-
-        </div>
-
+            }}
+            onResetView={() => {
+              setCameraMode('free');
+              flyToCameraRef.current?.({
+                position: [0, 14, 28],
+                rotation: [0, 0, 0],
+                fov: 45,
+                target: appState.cameraOrbitAnchor ?? [0, 10, 0],
+              });
+            }}
+            onShare={() => void product.handleShareScene()}
+            onExport={handleRenderMp4}
+            shareBusy={product.shareBusy}
+            onTryDemo={() => {
+              product.dismissOnboarding();
+              void handleLoadDemoScene(FEATURED_DEMO_ID);
+            }}
+            onSave={product.handleSaveProject}
+            onOpenProject={() => projectFileInputRef.current?.click()}
+            onClearScene={handleClearScene}
+            mobilePanelTab={mobilePanelTab}
+            onMobilePanelTabChange={setMobilePanelTab}
+            optimizedHint={layout.applyMobileSafeMode}
+            uiMode={product.uiMode}
+            onUiModeChange={product.handleUiModeChange}
+            qualityMode={product.qualityMode}
+            onQualityModeChange={product.handleQualityModeChange}
+            onApplyTemplate={(id) => applyTemplateRef.current(id)}
+            timeline={!isBeginnerMode(product.uiMode) ? editorTimelineShell : undefined}
+            renderPanel={(tab: ProMobileTab) =>
+              tab === 'fx' ? (
+                <div className="px-1 pb-4">{proFxPanel}</div>
+              ) : (
+                studioSidebar({
+                  mobile: true,
+                  embedded: true,
+                  proMobileSheet: true,
+                  tab,
+                })
+              )
+            }
+          />
+        ) : !isViewer ? (
+          <DesktopLayout
+            showLeftSidebar={showLeftSidebar}
+            onToggleLeftSidebar={() => setShowLeftSidebar(!showLeftSidebar)}
+            sidebar={showLeftSidebar ? studioSidebar({ mobile: isMobile && layout.isMobileLandscape }) : null}
+            viewportColumn={viewportColumn}
+          />
+        ) : (
+          viewportColumn
+        )}
       </div>
-
-      {!isViewer && isMobile && (
-        <MobileStudioBar
-          isPlaying={appState.isPlaying}
-          panelOpen={showLeftSidebar}
-          timelineOpen={showTimelinePanel}
-          onTogglePanel={() => setShowLeftSidebar((v) => !v)}
-          onToggleTimeline={() => setShowTimelinePanel((v) => !v)}
-          onTogglePlay={() => handleSetIsPlaying(!appState.isPlaying)}
-          onOpenMenu={() => {
-            setOpenTopMenuId(null);
-            setMobileNavOpen(true);
-          }}
-          onOpenFx={() => {
-            setMobileNavOpen(false);
-            setOpenTopMenuId((id) => (id === 'fx' ? null : 'fx'));
-          }}
-        />
-      )}
 
     </div>
   );

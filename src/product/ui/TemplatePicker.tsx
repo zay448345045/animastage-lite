@@ -3,13 +3,41 @@ import { listSceneTemplates } from '../templates/sceneTemplates';
 interface TemplatePickerProps {
   beginnerMode: boolean;
   onApplyTemplate: (templateId: string) => void;
+  /** Desktop bar vs vertical list in mobile menu */
+  variant?: 'bar' | 'menu';
 }
 
 /** Beginner-mode template chips — orchestrates via TemplateManager in parent. */
-export default function TemplatePicker({ beginnerMode, onApplyTemplate }: TemplatePickerProps) {
+export default function TemplatePicker({
+  beginnerMode,
+  onApplyTemplate,
+  variant = 'bar',
+}: TemplatePickerProps) {
   if (!beginnerMode) return null;
 
   const templates = listSceneTemplates();
+
+  if (variant === 'menu') {
+    return (
+      <div className="pro-menu-templates">
+        <p className="pro-mobile-menu-settings__label">Scene templates</p>
+        <ul className="pro-menu-templates__list">
+          {templates.map((tpl) => (
+            <li key={tpl.id}>
+              <button
+                type="button"
+                title={tpl.description}
+                onClick={() => onApplyTemplate(tpl.id)}
+                className="pro-menu-templates__btn"
+              >
+                {tpl.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-1.5 px-3 py-2 bg-[#0a0b0e] border-b border-zinc-800/60">

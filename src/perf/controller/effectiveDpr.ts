@@ -5,6 +5,7 @@ import {
 } from '../../utils/characterQuality';
 import { getEffectiveDegradeLevel } from '../effectiveDegradeLevel';
 import { isModelLoadActive } from '../modelLoadProfile';
+import { getMobileSafeDprScale, isMobileRuntimeCapsActive } from '../mobileRuntimeCaps';
 import { getPlaybackDprFloor } from '../playbackPerfMode';
 import { getPerfGovernorScale, MIN_GOVERNOR_RENDER_SCALE } from './perfGovernor';
 
@@ -23,6 +24,9 @@ export function getEffectiveDprMultiplier(): number {
 
   let mul = Math.min(getPerfGovernorScale(), degradeMul);
   mul = Math.max(mul, MIN_GOVERNOR_RENDER_SCALE);
+  if (isMobileRuntimeCapsActive()) {
+    mul *= getMobileSafeDprScale();
+  }
   const playbackFloor = getPlaybackDprFloor();
   if (playbackFloor > 0) {
     mul = Math.max(mul, playbackFloor);

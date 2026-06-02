@@ -19,7 +19,7 @@ import {
 import { countCameraKeyframes } from './CameraLogic';
 import TimelineToolsBar from './TimelineToolsBar';
 import { playheadRef, MMD_FPS } from '../utils/playhead';
-import { useIsMobileStudio } from '../hooks/useMediaQuery';
+import { useStudioLayout } from '../hooks/useStudioLayout';
 
 const FRAME_WIDTH_DESKTOP = 24;
 const FRAME_WIDTH_MOBILE = 16;
@@ -216,8 +216,10 @@ export default function Timeline({
     appState;
   const activeModel = models.find((m) => m.id === selectedObjectId);
   const [applyMode, setApplyMode] = useState<TemplateApplyMode>('merge');
-  const isMobile = useIsMobileStudio();
-  const frameWidth = isMobile ? FRAME_WIDTH_MOBILE : FRAME_WIDTH_DESKTOP;
+  const { isProMobile, isMobileLayout } = useStudioLayout();
+  const isMobile = isMobileLayout;
+  const showTrackRail = !isMobile || isProMobile;
+  const frameWidth = isProMobile ? 14 : isMobile ? FRAME_WIDTH_MOBILE : FRAME_WIDTH_DESKTOP;
 
   const applyWithMode = (templateId: string) => onApplyTemplate(templateId, applyMode);
   const modelKeyCount = activeModel ? countTimelineKeyframes(activeModel.keyframes) : 0;
@@ -276,7 +278,11 @@ export default function Timeline({
 
   return (
     <div
-      className="bg-[#16181d] border-t border-zinc-800 select-none flex flex-col h-full min-h-[160px] md:h-72 w-full text-zinc-100 font-sans shadow-lg"
+      className={`bg-[#16181d] select-none flex flex-col w-full text-zinc-100 font-sans ${
+        isProMobile
+          ? 'flex-1 min-h-0 h-full border-0 shadow-none'
+          : 'border-t border-zinc-800 h-full min-h-[160px] md:h-72 shadow-lg'
+      }`}
       id="mmd-timeline"
     >
       {/* Transport + frame (mobile: stacked; desktop: one row) */}
@@ -414,61 +420,78 @@ export default function Timeline({
         </div>
       </div>
 
-      {/* Mobile: horizontal track picker (full-width grid below) */}
-      <div className="md:hidden shrink-0 border-b border-zinc-800 bg-[#121418] px-1.5 py-1 overflow-x-auto">
-        <div className="flex gap-1 min-w-min">
-          {TRACK_DEFINITIONS.map((track) => {
-            const isActive = timelineActiveTrack === track.id;
-            return (
-              <button
-                key={track.id}
-                type="button"
-                onClick={() => onSelectTrack(track.id as TimelineActiveTrack)}
-                className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold border cursor-pointer ${
-                  isActive
-                    ? 'bg-[#39c5bb]/15 border-[#39c5bb]/50 text-[#39c5bb]'
-                    : 'bg-[#1a1d24] border-zinc-800 text-zinc-400'
-                }`}
-                title={track.label}
-              >
-                {TRACK_SHORT_LABELS[track.id] ?? track.group}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Desktop: track list */}
-        <div className="hidden md:flex w-56 border-r border-[#22252c] bg-[#121418] flex-col shrink-0 min-h-0">
-          <div className="h-8 border-b border-zinc-800 px-3 flex items-center justify-between text-[10px] font-bold text-[#39c5bb] uppercase bg-[#1c1e24] shrink-0">
-            <span>Bone/Morph Track</span>
-            <ListFilter className="w-3.5 h-3.5 text-zinc-500" />
-          </div>
-          <div className="flex-1 overflow-y-auto divide-y divide-zinc-850 min-h-0">
+      {/* Legacy mobile chips — hidden when Pro Mobile shows track rail */}
+      {isMobile && !showTrackRail ? (
+        <div className="shrink-0 border-b border-zinc-800 bg-[#121418] px-1.5 py-1 overflow-x-auto">
+          <div className="flex gap-1 min-w-min">
             {TRACK_DEFINITIONS.map((track) => {
               const isActive = timelineActiveTrack === track.id;
               return (
-                <div
+                <button
                   key={track.id}
+                  type="button"
                   onClick={() => onSelectTrack(track.id as TimelineActiveTrack)}
-                  className={`h-8 px-3 text-xs flex items-center justify-between hover:bg-zinc-800/50 border-b border-zinc-850 cursor-pointer ${
-                    isActive ? 'bg-[#39c5bb]/10 border-l-2 border-l-[#39c5bb]' : ''
+                  className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold border cursor-pointer ${
+                    isActive
+                      ? 'bg-[#39c5bb]/15 border-[#39c5bb]/50 text-[#39c5bb]'
+                      : 'bg-[#1a1d24] border-zinc-800 text-zinc-400'
                   }`}
+                  title={track.label}
                 >
-                  <span
-                    className={`truncate font-semibold pr-2 ${isActive ? 'text-[#39c5bb]' : 'text-zinc-300'}`}
-                  >
-                    {track.label}
-                  </span>
-                  <span className="text-[8px] text-[#39c5bb]/80 bg-zinc-900 border border-zinc-800 px-1 py-0.5 font-mono uppercase rounded-sm shrink-0">
-                    {track.group}
-                  </span>
-                </div>
+                  {TRACK_SHORT_LABELS[track.id] ?? track.group}
+                </button>
               );
             })}
           </div>
         </div>
+      ) : null}
+
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {showTrackRail ? (
+          <div
+            className={`timeline-track-rail border-r border-[#22252c] bg-[#121418] flex-col shrink-0 min-h-0 flex ${
+              isProMobile ? 'w-[7.25rem]' : 'hidden md:flex w-56'
+            }`}
+          >
+            <div
+              className={`border-b border-zinc-800 flex items-center justify-between font-bold text-[#39c5bb] uppercase bg-[#1c1e24] shrink-0 ${
+                isProMobile ? 'h-7 px-2 text-[8px]' : 'h-8 px-3 text-[10px]'
+              }`}
+            >
+              <span className="truncate">{isProMobile ? 'Tracks' : 'Bone/Morph Track'}</span>
+              <ListFilter className={`text-zinc-500 shrink-0 ${isProMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-zinc-850 min-h-0">
+              {TRACK_DEFINITIONS.map((track) => {
+                const isActive = timelineActiveTrack === track.id;
+                return (
+                  <div
+                    key={track.id}
+                    onClick={() => onSelectTrack(track.id as TimelineActiveTrack)}
+                    className={`flex items-center justify-between hover:bg-zinc-800/50 border-b border-zinc-850 cursor-pointer ${
+                      isProMobile ? 'h-7 px-1.5' : 'h-8 px-3'
+                    } ${isActive ? 'bg-[#39c5bb]/10 border-l-2 border-l-[#39c5bb]' : ''}`}
+                  >
+                    <span
+                      className={`truncate font-semibold pr-1 leading-tight ${
+                        isProMobile ? 'text-[9px]' : 'text-xs pr-2'
+                      } ${isActive ? 'text-[#39c5bb]' : 'text-zinc-300'}`}
+                    >
+                      {track.label}
+                    </span>
+                    <span
+                      className={`text-[#39c5bb]/80 bg-zinc-900 border border-zinc-800 font-mono uppercase rounded-sm shrink-0 ${
+                        isProMobile ? 'text-[7px] px-0.5 py-px' : 'text-[8px] px-1 py-0.5'
+                      }`}
+                    >
+                      {track.group}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <div
           ref={timelineScrollRef}
@@ -512,7 +535,11 @@ export default function Timeline({
               />
             </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0 max-md:max-h-[28vh]">
+            <div
+              className={`flex-1 overflow-y-auto min-h-0 ${
+                isProMobile ? 'min-h-[100px]' : 'max-md:max-h-[28vh]'
+              }`}
+            >
               {TRACK_DEFINITIONS.map((track) => {
                 const isCameraTrack = track.id === 'camera';
                 const trackKeys = isCameraTrack
@@ -526,7 +553,10 @@ export default function Timeline({
                     : [];
 
                 const rowHiddenOnMobile =
-                  isMobile && timelineActiveTrack != null && timelineActiveTrack !== track.id;
+                  isMobile &&
+                  !isProMobile &&
+                  timelineActiveTrack != null &&
+                  timelineActiveTrack !== track.id;
 
                 return (
                   <div
@@ -612,23 +642,44 @@ export default function Timeline({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-zinc-800 bg-[#121418] px-2 py-1 md:px-4 md:py-0 md:h-8 flex items-center justify-between text-[9px] md:text-[11px] font-mono text-zinc-400">
-        <span className="md:hidden truncate">
-          {MMD_FPS} fps · Linear
-          {timelineActiveTrack && (
-            <>
-              {' '}
-              · <span className="text-[#e879ff]">{TRACK_SHORT_LABELS[timelineActiveTrack] ?? timelineActiveTrack}</span>
-            </>
-          )}
-        </span>
-        <div className="hidden md:flex items-center space-x-4">
-          <span>
-            MMD timeline: <span className="text-[#39c5bb] font-bold">{MMD_FPS}</span> fps · Smooth
-            playback: <span className="text-[#39c5bb] font-bold">display refresh</span>
-          </span>
-          <span>Sample Mode: Linear Interpolation</span>
-        </div>
+      <div
+        className={`shrink-0 border-t border-zinc-800 bg-[#121418] flex items-center justify-between font-mono text-zinc-400 ${
+          isProMobile
+            ? 'px-2 py-1.5 text-[8px] min-h-[32px]'
+            : 'px-2 py-1 md:px-4 md:py-0 md:h-8 text-[9px] md:text-[11px]'
+        }`}
+      >
+        {isProMobile ? (
+          <div className="flex flex-col gap-0.5 min-w-0 flex-1 leading-tight">
+            <span>
+              MMD timeline: <span className="text-[#39c5bb] font-bold">{MMD_FPS}</span> fps · Smooth
+              playback: <span className="text-[#39c5bb] font-bold">display refresh</span>
+            </span>
+            <span>Sample Mode: Linear Interpolation</span>
+          </div>
+        ) : (
+          <>
+            <span className="md:hidden truncate">
+              {MMD_FPS} fps · Linear
+              {timelineActiveTrack && (
+                <>
+                  {' '}
+                  ·{' '}
+                  <span className="text-[#e879ff]">
+                    {TRACK_SHORT_LABELS[timelineActiveTrack] ?? timelineActiveTrack}
+                  </span>
+                </>
+              )}
+            </span>
+            <div className="hidden md:flex items-center space-x-4">
+              <span>
+                MMD timeline: <span className="text-[#39c5bb] font-bold">{MMD_FPS}</span> fps · Smooth
+                playback: <span className="text-[#39c5bb] font-bold">display refresh</span>
+              </span>
+              <span>Sample Mode: Linear Interpolation</span>
+            </div>
+          </>
+        )}
         <span className="shrink-0 ml-2 md:ml-0">
           {activeModel || cameraKeyframes.length > 0 ? (
             <>

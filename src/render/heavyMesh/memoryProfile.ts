@@ -16,6 +16,16 @@ export const HEAVY_MESH_MEMORY = {
   maxTextureSize: 1024,
 } as const;
 
+let runtimeMaxTextureSize = HEAVY_MESH_MEMORY.maxTextureSize;
+
+export function getRuntimeMaxTextureSize(): number {
+  return runtimeMaxTextureSize;
+}
+
+export function setRuntimeMaxTextureSize(size: number): void {
+  runtimeMaxTextureSize = Math.max(256, Math.min(4096, Math.floor(size)));
+}
+
 export function estimateGeometryBytes(geometry: BufferGeometry): number {
   let bytes = 0;
   for (const key in geometry.attributes) {

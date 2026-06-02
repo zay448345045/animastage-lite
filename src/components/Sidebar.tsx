@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import {
   FolderOpen,
   Layers,
   Sliders,
   Wrench,
+  Camera,
 } from 'lucide-react';
 import type { AppState, MmdLiteConfig, PhysicsMode } from '../types';
+import type { MobilePanelTab } from '../hooks/useStudioLayout';
 import type { ProcessedMMDFiles } from '../utils/mmdFiles';
 import type { PoseSnapshotV1 } from '../pose/poseTypes';
 import type { AnimationLayerDef, TimelineKeyframe } from '../types';
@@ -14,6 +17,7 @@ import LoadSection from './sidebar/LoadSection';
 import SceneSection from './sidebar/SceneSection';
 import ControlsSection from './sidebar/ControlsSection';
 import AdvancedSection from './sidebar/AdvancedSection';
+import MobileCameraTab from './mobile/MobileCameraTab';
 
 interface SidebarProps {
   appState: AppState;
@@ -45,6 +49,7 @@ interface SidebarProps {
   onToggleGroupMute?: (groupId: string) => void;
   maxFrames?: number;
   isMobile?: boolean;
+  embedded?: boolean;
   onClose?: () => void;
   onApplyPose?: (pose: PoseSnapshotV1) => void;
   onCapturePose?: () => void;
@@ -61,6 +66,12 @@ interface SidebarProps {
   onSceneGraphToggleVisibility?: (objectId: string) => void;
   onSceneGraphToggleLock?: (objectId: string) => void;
   onSceneGraphCreateGroup?: () => void;
+  onSetCameraMode?: (mode: AppState['cameraMode']) => void;
+  onToggleManualCameraLock?: () => void;
+  mobileTab?: MobilePanelTab;
+  onMobileTabChange?: (tab: MobilePanelTab) => void;
+  /** Pro Mobile bottom sheet — no tabs/header chrome */
+  proMobileSheet?: boolean;
 }
 
 export default function Sidebar({
@@ -93,6 +104,7 @@ export default function Sidebar({
   onToggleGroupMute,
   maxFrames = 120,
   isMobile = false,
+  embedded = false,
   onClose,
   onApplyPose,
   onCapturePose,
@@ -108,7 +120,18 @@ export default function Sidebar({
   onSceneGraphToggleVisibility,
   onSceneGraphToggleLock,
   onSceneGraphCreateGroup,
+  onSetCameraMode,
+  onToggleManualCameraLock,
+  mobileTab: mobileTabProp,
+  onMobileTabChange,
+  proMobileSheet = false,
 }: SidebarProps) {
+  const [internalTab, setInternalTab] = useState<MobilePanelTab>('scene');
+  const mobileTab = mobileTabProp ?? internalTab;
+  const setMobileTab = (t: MobilePanelTab) => {
+    setInternalTab(t);
+    onMobileTabChange?.(t);
+  };
   const lite = appState.mmdLite;
   const selectedModel = appState.models.find((m) => m.id === appState.selectedObjectId);
   const selectedBone = selectedModel?.bones.find((b) => b.id === appState.selectedBoneId);
@@ -118,15 +141,17 @@ export default function Sidebar({
   return (
     <aside
       className={`studio-sidebar select-none font-sans ${
-        isMobile
-          ? 'studio-sidebar-drawer pt-[env(safe-area-inset-top)]'
-          : 'relative'
+        proMobileSheet
+          ? 'pro-mobile-sheet-content relative h-full w-full'
+          : isMobile && !embedded
+            ? 'fixed inset-y-0 left-0 z-50 w-[min(100vw,18rem)] max-w-full shadow-2xl pt-[env(safe-area-inset-top)]'
+            : 'relative h-full w-full'
       }`}
       id="mmd-sidebar"
     >
-      {isMobile && onClose ? (
+      {isMobile && onClose && !proMobileSheet ? (
         <div
-          className="flex items-center justify-between border-b border-[var(--color-border)]"
+          className="flex items-center justify-between border-b border-[var(--color-border)] md:hidden"
           style={{ padding: 'var(--space-sm) var(--space-md)' }}
         >
           <span className="text-[var(--font-size-base)] font-semibold text-[var(--color-text-main)]">
@@ -139,6 +164,34 @@ export default function Sidebar({
       ) : null}
 
       <div className="studio-sidebar__scroll">
+        {isMobile && !proMobileSheet ? (
+          <div className="mobile-panel-tabs" role="tablist">
+            {(
+              [
+                ['scene', 'Scene', Layers],
+                ['control', 'Control', Sliders],
+                ['camera', 'Camera', Camera],
+              ] as const
+            ).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={mobileTab === id}
+                className={`mobile-panel-tabs__btn ${mobileTab === id ? 'mobile-panel-tabs__btn--active' : ''}`}
+                onClick={() => setMobileTab(id)}
+              >
+                <span className="flex flex-col items-center gap-0.5">
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {(!isMobile || mobileTab === 'scene') && (
+          <>
         <CollapsibleSection title="Load" defaultOpen icon={<FolderOpen className="w-4 h-4" />}>
           <LoadSection
             onLoadModel={onLoadModel}
@@ -164,7 +217,19 @@ export default function Sidebar({
             onLoadModel={onLoadModel}
           />
         </CollapsibleSection>
+          </>
+        )}
 
+        {isMobile && mobileTab === 'camera' && onSetCameraMode && onToggleManualCameraLock ? (
+          <MobileCameraTab
+            appState={appState}
+            onSetCameraMode={onSetCameraMode}
+            onToggleManualLock={onToggleManualCameraLock}
+          />
+        ) : null}
+
+        {(!isMobile || mobileTab === 'control') && (
+          <>
         <CollapsibleSection
           title="Controls"
           defaultOpen={Boolean(selectedModel)}
@@ -187,6 +252,7 @@ export default function Sidebar({
           />
         </CollapsibleSection>
 
+        {!beginnerMode ? (
         <CollapsibleSection title="Advanced" defaultOpen={false} icon={<Wrench className="w-4 h-4" />}>
           <AdvancedSection
             appState={appState}
@@ -213,6 +279,9 @@ export default function Sidebar({
             onSelectMaterial={onSelectMaterial}
           />
         </CollapsibleSection>
+        ) : null}
+          </>
+        )}
       </div>
 
       {selectedModel ? (

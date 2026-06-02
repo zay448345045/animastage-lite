@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HEAVY_MESH_MEMORY } from './memoryProfile';
+import { HEAVY_MESH_MEMORY, getRuntimeMaxTextureSize } from './memoryProfile';
 import { yieldToMain } from '../../utils/yieldMainThread';
 
 function resizeTextureSource(
@@ -70,7 +70,7 @@ const TEXTURE_KEYS = [
 /** Downscale oversized textures to reduce GPU + RAM pressure on ultra-heavy imports. */
 export function capMaterialTextureResolution(
   root: THREE.Object3D,
-  maxSize = HEAVY_MESH_MEMORY.maxTextureSize
+  maxSize = getRuntimeMaxTextureSize()
 ): number {
   let capped = 0;
   const seen = new WeakSet<THREE.Texture>();
@@ -109,7 +109,7 @@ const YIELD_CHUNK_SIZE = 8;
 
 export async function capMaterialTextureResolutionAsync(
   root: THREE.Object3D,
-  maxSize = HEAVY_MESH_MEMORY.maxTextureSize
+  maxSize = getRuntimeMaxTextureSize()
 ): Promise<number> {
   const seen = new WeakSet<THREE.Texture>();
   const stack: THREE.Object3D[] = [root];

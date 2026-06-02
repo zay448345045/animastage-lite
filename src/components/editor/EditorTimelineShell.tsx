@@ -25,9 +25,14 @@ interface EditorTimelineShellProps {
     commit?: boolean
   ) => void;
   activeTrack: TimelineTrackId | null;
+  /** Pro Mobile bottom sheet — fill available height */
+  embeddedInSheet?: boolean;
 }
 
-export default function EditorTimelineShell(props: EditorTimelineShellProps) {
+export default function EditorTimelineShell({
+  embeddedInSheet = false,
+  ...props
+}: EditorTimelineShellProps) {
   const [tab, setTab] = useState<EditorTab>('timeline');
   const model = props.appState.models.find((m) => m.id === props.appState.selectedObjectId);
   const keyframes = model?.keyframes ?? [];
@@ -39,7 +44,13 @@ export default function EditorTimelineShell(props: EditorTimelineShellProps) {
       : props.activeTrack;
 
   return (
-    <div className="editor-timeline-shell flex flex-col border-t border-zinc-800 bg-[#121418] max-md:max-h-[min(58vh,480px)] max-md:min-h-0 max-md:overflow-hidden shrink-0">
+    <div
+      className={
+        embeddedInSheet
+          ? 'editor-timeline-shell editor-timeline-shell--pro flex flex-col flex-1 min-h-0 bg-[#121418] overflow-hidden border-0'
+          : 'editor-timeline-shell flex flex-col border-t border-zinc-800 bg-[#121418] shrink-0 min-h-0 max-h-[min(38vh,360px)] overflow-hidden'
+      }
+    >
       <div className="flex items-center gap-1 px-2 py-1 border-b border-zinc-800 bg-[#0e1014] shrink-0 overflow-x-auto">
         {(
           [
@@ -62,9 +73,11 @@ export default function EditorTimelineShell(props: EditorTimelineShellProps) {
             {label}
           </button>
         ))}
-        <span className="ml-auto hidden md:inline text-[8px] text-zinc-600 font-mono shrink-0">
-          Ctrl+Z undo · Ctrl+C/V copy · Del delete key
-        </span>
+        {!embeddedInSheet ? (
+          <span className="ml-auto hidden md:inline text-[8px] text-zinc-600 font-mono shrink-0">
+            Ctrl+Z undo · Ctrl+C/V copy · Del delete key
+          </span>
+        ) : null}
       </div>
 
       <div

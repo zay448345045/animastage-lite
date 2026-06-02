@@ -1,4 +1,4 @@
-import { Save, FolderOpen, Share2, Smartphone, Gauge, Sparkles } from 'lucide-react';
+import { Save, FolderOpen, Share2, Smartphone, Gauge, Sparkles, Play, Video } from 'lucide-react';
 import type { StudioUiMode } from '../../flow/types';
 import type { QualityMode } from '../../product/scene/types';
 import { DEBUG_UI } from '../../config/debugUi';
@@ -13,6 +13,8 @@ interface StudioFlowBarProps {
   onLoadProjectFile: () => void;
   onShareScene: () => void;
   onCreateShort: () => void;
+  onTryDemo?: () => void;
+  onExportMp4?: () => void;
   hasSavedProject: boolean;
   qualityMode: QualityMode;
   onQualityModeChange: (mode: QualityMode) => void;
@@ -79,6 +81,8 @@ export default function StudioFlowBar({
   onLoadProjectFile,
   onShareScene,
   onCreateShort,
+  onTryDemo,
+  onExportMp4,
   hasSavedProject,
   qualityMode,
   onQualityModeChange,
@@ -87,15 +91,40 @@ export default function StudioFlowBar({
 }: StudioFlowBarProps) {
   if (readOnly) return null;
 
+  if (compact) {
+    return (
+      <div className="studio-flow-bar--compact shrink-0 flex items-center justify-between gap-[var(--space-sm)] bg-[var(--color-bg)] border-b border-[var(--color-border)]">
+        <span className="text-[var(--font-size-sm)] font-semibold text-[var(--color-text-secondary)] truncate">
+          AnimaStage Lite
+        </span>
+        <div className="flex items-center gap-[var(--space-sm)] shrink-0">
+          {onTryDemo ? (
+            <Button type="button" variant="secondary" size="sm" onClick={onTryDemo}>
+              <Play className="w-3.5 h-3.5" />
+              Demo
+            </Button>
+          ) : null}
+          {onExportMp4 ? (
+            <Button type="button" variant="ghost" size="sm" onClick={onExportMp4}>
+              <Video className="w-3.5 h-3.5" />
+              Export
+            </Button>
+          ) : null}
+          <Button type="button" variant="primary" size="sm" onClick={onCreateShort}>
+            <Smartphone className="w-3.5 h-3.5" />
+            Short
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={cn(
-        'studio-flow-bar shrink-0 flex flex-wrap items-center justify-between gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-sm)] bg-[var(--color-bg)] border-b border-[var(--color-border)]',
-        compact && 'studio-flow-bar--compact'
-      )}
+      className="shrink-0 flex flex-wrap items-center justify-between gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-sm)] bg-[var(--color-bg)] border-b border-[var(--color-border)]"
       style={{ fontSize: 'var(--font-size-base)' }}
     >
-      <div className="flex flex-wrap items-center gap-[var(--space-md)] shrink-0">
+      <div className="flex flex-wrap items-center gap-[var(--space-md)]">
         <Segmented
           aria-label="Editor mode"
           options={[
@@ -106,7 +135,7 @@ export default function StudioFlowBar({
           onChange={onUiModeChange}
         />
 
-        <div className="studio-flow-bar__quality flex items-center gap-[var(--space-sm)]">
+        <div className="flex items-center gap-[var(--space-sm)]">
           <Gauge className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" aria-hidden />
           <Segmented
             aria-label="Quality mode"
@@ -117,7 +146,7 @@ export default function StudioFlowBar({
         </div>
       </div>
 
-      <div className="studio-flow-bar__actions flex flex-wrap items-center gap-[var(--space-sm)]">
+      <div className="flex flex-wrap items-center gap-[var(--space-sm)]">
         <Button type="button" variant="ghost" size="sm" onClick={onSaveProject} title="Download .animastage project file">
           <Save className="w-3.5 h-3.5" />
           Save

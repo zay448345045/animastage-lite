@@ -56,6 +56,13 @@ export function resolveEffectivePhysicsTier(): EffectivePhysicsTier {
 
 let templatePlaybackCap: number | null = null;
 let timelinePlaybackCap: number | null = null;
+let mobileRuntimeCap: number | null = null;
+
+/** Limits substeps on phones (SAFE mode). */
+export function setMobilePhysicsCap(maxSteps: number | null): void {
+  mobileRuntimeCap = maxSteps;
+  refreshScenePhysicsSubstepCaps();
+}
 
 /** Set during template dance playback — limits cloth substeps (mmd_rtx guard). */
 export function setTemplatePhysicsCap(maxSteps: number | null): void {
@@ -77,6 +84,9 @@ export function getEffectivePhysicsMaxSteps(): number {
   }
   if (timelinePlaybackCap !== null) {
     steps = Math.min(steps, timelinePlaybackCap);
+  }
+  if (mobileRuntimeCap !== null) {
+    steps = Math.min(steps, mobileRuntimeCap);
   }
   return steps;
 }

@@ -16,6 +16,7 @@ import {
   Music2,
   Film,
   X,
+  Menu,
 } from 'lucide-react';
 import {
   CharacterQuality,
@@ -80,6 +81,7 @@ interface TopMenuProps {
   onMobileNavOpenChange?: (open: boolean) => void;
   openMenuId?: string | null;
   onOpenMenuIdChange?: (id: string | null) => void;
+  onTryDemo?: () => void;
   pathTracerLabEnabled?: boolean;
   pathTracer?: PathTracerSettings;
   onSetPathTracerLabEnabled?: (enabled: boolean) => void;
@@ -135,6 +137,7 @@ export default function TopMenu({
   onMobileNavOpenChange,
   openMenuId = null,
   onOpenMenuIdChange,
+  onTryDemo,
   pathTracerLabEnabled,
   pathTracer,
   onSetPathTracerLabEnabled,
@@ -422,9 +425,27 @@ export default function TopMenu({
   };
 
   return (
-    <header className="h-11 md:h-11 min-h-[44px] bg-[#16181d] border-b border-[#22252c] flex items-center justify-between px-3 md:px-4 select-none text-zinc-100 font-sans shadow-md shrink-0 pt-[env(safe-area-inset-top)]" id="mmd-top-menu">
+    <header
+      className={`bg-[#16181d] border-b border-[#22252c] flex items-center justify-between select-none text-zinc-100 font-sans shadow-md shrink-0 pt-[env(safe-area-inset-top)] ${
+        isMobile
+          ? 'h-10 min-h-[40px] px-2 studio-mobile-header'
+          : 'h-11 md:h-11 min-h-[44px] px-3 md:px-4'
+      }`}
+      id="mmd-top-menu"
+    >
       {/* Brand Logo and Menu Column */}
-      <div className="flex items-center space-x-3 md:space-x-6 min-w-0">
+      <div className="flex items-center space-x-2 md:space-x-6 min-w-0">
+        {isMobile && onMobileNavOpenChange ? (
+          <button
+            type="button"
+            onClick={() => onMobileNavOpenChange(!mobileNavOpen)}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-zinc-300 active:text-[#39c5bb] active:bg-[#252a35] cursor-pointer shrink-0"
+            aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileNavOpen}
+          >
+            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        ) : null}
         <div className="flex items-center space-x-2 min-w-0">
           <div className="bg-teal-950/85 p-1.5 border border-teal-500/35 rounded shadow-sm shrink-0">
             <Video className="w-3.5 h-3.5 text-[#39c5bb]" />
@@ -600,7 +621,25 @@ export default function TopMenu({
       )}
  
       {/* Right Tools Info / Status Bar */}
-      <div className="flex items-center space-x-2 md:space-x-4 shrink-0">
+      <div className="flex items-center space-x-2 md:space-x-4 shrink-0 topmenu-mobile-actions">
+        {isMobile && onTryDemo ? (
+          <button
+            type="button"
+            onClick={onTryDemo}
+            className="min-h-[44px] px-3 py-1.5 rounded-md border border-[#39c5bb]/40 bg-[#39c5bb]/15 text-[#39c5bb] text-[10px] font-bold uppercase cursor-pointer"
+          >
+            Try Demo
+          </button>
+        ) : null}
+        {isMobile && onRenderMp4 ? (
+          <button
+            type="button"
+            onClick={onRenderMp4}
+            className="min-h-[44px] px-3 py-1.5 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-200 text-[10px] font-bold uppercase cursor-pointer"
+          >
+            Export
+          </button>
+        ) : null}
         <div className="hidden lg:flex items-center space-x-2.5 text-[11px] font-mono text-zinc-400">
           <span className="flex items-center gap-1.5 font-bold text-[#39c5bb]">
             <Cpu className="w-3.5 h-3.5 text-[#39c5bb]" /> WebGL Engine

@@ -26,45 +26,43 @@ import ConversionBridge from './landing/ConversionBridge';
 
 const SITE_URL = 'https://animastage-lite.app';
 
-/** APK hosted on GitHub Releases (>100 MB — not in git). Build: `npm run sync:android:assets` */
+/** Shipped with `npm run build:android` → public/app-debug.apk */
 const ANDROID_RELEASE = {
-  url: 'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
-  directUrl:
-    'https://github.com/FBNonaMe/animastage-lite/releases/download/v1.1.0FIX/app-debug.apk',
-  releasePage: 'https://github.com/FBNonaMe/animastage-lite/releases/tag/v1.1.0FIX',
-  downloadName: 'app-debug.apk',
-  linkProps: { target: '_blank', rel: 'noopener noreferrer' } as const,
-  version: '1.1.1',
+  /** Root-relative — works on `/` and after deploy from `public/` */
+  url: '/app-debug.apk',
+  directUrl: `${SITE_URL}/app-debug.apk`,
+  downloadName: 'AnimaStage-Lite-1.2.0-portrait.apk',
+  version: '1.2.0',
   versionCode: 3,
-  buildLabel: 'Updated Jun 2, 2026 — portrait',
-  sizeMb: 114,
-  sizeHint: '~114 MB',
+  buildLabel: 'Jun 3, 2026',
+  sizeMb: 19.4,
+  sizeHint: '~20 MB',
   minAndroid: 'Android 6.0+ (API 23)',
   orientation: 'Portrait (vertical)',
   whatsNew: [
-    'Portrait lock — hold phone vertically; no forced landscape rotation',
-    'Compact mobile UI — bottom nav, sidebar & timeline as overlays (no overlapping panels)',
-    'Updated Studio UI — design system, modular sidebar, empty-state onboarding',
-    'Stable performance HUD — frame time, CPU/GPU estimate, Smooth / Okay / Lagging',
+    'Pro Mobile UI — bottom tabs, timeline sheet, settings in the menu (☰)',
+    'Portrait lock — hold the phone vertically like a native app',
+    'Smaller APK (~20 MB) — no nested bundle bloat',
+    'Timeline tracks, FPS HUD, and quality modes tuned for phone screens',
   ],
   highlights: [
-    'Opens straight into Studio `/app` — no marketing page on launch',
-    'Portrait phone layout — bottom bar (Menu · Panel · Play · Time · FX)',
-    'Balanced WebView quality — GPU caps tuned for phones and tablets',
-    'Client-side only — PMX/VMD stay on your device, no account required',
-    'Same Bullet physics, timeline, and export stack as animastage-lite.app',
+    'Opens straight into Studio — no marketing page on launch',
+    'Portrait-first mobile shell — Scene, Control, Camera, FX tabs',
+    'Same PMX/PMD/VMD import, timeline, Camera Studio, and MP4 export as the browser',
+    'Client-side only — files stay on your device, no account required',
+    'Balanced performance presets (Perf / Bal / Qual) in the app menu',
   ],
   requirements: [
-    'Phone or tablet in vertical (portrait) orientation',
+    'Phone or tablet held upright (portrait); app stays vertical',
     'Allow install from browser or Files app (sideload debug APK)',
     'WebGL2-capable device; 4 GB+ RAM recommended for heavy PMX',
-    'Chrome-based browser engine (WebView) — best on Android 10+',
+    'Chrome-based WebView — best on Android 10+',
   ],
   installSteps: [
-    'Tap Download APK below (~114 MB) — served from GitHub Releases.',
+    'Tap Download APK below (file: app-debug.apk, ~20 MB).',
     'If blocked: Settings → Security → install unknown apps → allow your browser or Files.',
     'Open the downloaded APK and tap Install.',
-    'Launch AnimaStage Lite — studio opens automatically in portrait.',
+    'Launch AnimaStage Lite — studio opens in portrait; use ☰ for mode and templates.',
   ],
 } as const;
 
@@ -79,7 +77,7 @@ const CORE_FEATURES = [
   { icon: Upload, title: 'Load PMX / PMD + VMD', desc: 'Drop your folder — see your character move in one step.' },
   { icon: Play, title: 'Real-time playback', desc: 'Watch dances instantly — no desktop MMD required.' },
   { icon: Video, title: 'MP4 export', desc: 'Ship Shorts or widescreen video from the same tab.' },
-  { icon: Smartphone, title: 'Android app', desc: 'v1.1.1 portrait APK — full studio on phone, direct download.' },
+  { icon: Smartphone, title: 'Android app', desc: 'v1.2.0 portrait APK (~20 MB) — full studio on your phone, direct download.' },
 ] as const;
 
 const ADVANCED_FEATURES = [
@@ -104,7 +102,7 @@ const FAQ = [
   },
   {
     q: 'Is there an Android app?',
-    a: `Yes — download v${ANDROID_RELEASE.version} (${ANDROID_RELEASE.sizeHint}, portrait) from the Android section. It opens the full MMD studio on your phone with the same PMX/VMD workflow as the browser. Debug APK for sideload; no Google Play yet.`,
+    a: `Yes — download v${ANDROID_RELEASE.version} (${ANDROID_RELEASE.sizeHint}, ${ANDROID_RELEASE.orientation.toLowerCase()}) from the Android section. It opens the full MMD studio on your phone with the same PMX/VMD workflow as the browser. Debug APK for sideload; no Google Play yet.`,
   },
 ] as const;
 
@@ -218,7 +216,7 @@ export default function LandingPage({
           <div className="flex items-center gap-2 shrink-0 md:hidden">
             <a
               href={ANDROID_RELEASE.url}
-              {...ANDROID_RELEASE.linkProps}
+              download={ANDROID_RELEASE.downloadName}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-200 font-semibold text-xs px-3 py-2"
               title={`Download Android v${ANDROID_RELEASE.version}`}
             >
@@ -272,7 +270,7 @@ export default function LandingPage({
                   </GhostBtn>
                   <a
                     href={ANDROID_RELEASE.url}
-                    {...ANDROID_RELEASE.linkProps}
+                    download={ANDROID_RELEASE.downloadName}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/30 hover:bg-emerald-900/40 hover:border-emerald-400/50 text-emerald-100 font-semibold text-sm sm:text-base px-6 py-3.5 transition-all"
                   >
                     <Download className="w-4 h-4" />
@@ -566,7 +564,7 @@ export default function LandingPage({
               </h2>
               <p className="text-zinc-400 text-sm sm:text-base max-w-2xl mx-auto">
                 Install <strong className="text-zinc-200 font-semibold">v{ANDROID_RELEASE.version}</strong> — the same
-                editor as animastage-lite.app, packaged for portrait WebView. Free debug APK, direct download below.
+                editor as animastage-lite.app, packaged for portrait WebView. Free debug APK (~20 MB), direct download below.
               </p>
             </div>
 
@@ -611,7 +609,7 @@ export default function LandingPage({
                 <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto">
                   <a
                     href={ANDROID_RELEASE.url}
-                    {...ANDROID_RELEASE.linkProps}
+                    download={ANDROID_RELEASE.downloadName}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-zinc-950 font-bold text-sm sm:text-base px-6 py-3.5 shadow-lg shadow-emerald-500/25 transition-all"
                   >
                     <Download className="w-5 h-5" />
@@ -619,7 +617,6 @@ export default function LandingPage({
                   </a>
                   <a
                     href={ANDROID_RELEASE.url}
-                    {...ANDROID_RELEASE.linkProps}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-950/20 hover:bg-emerald-900/30 text-emerald-200/90 font-semibold text-xs px-4 py-2.5 transition-all"
                   >
                     Open direct link
@@ -666,11 +663,7 @@ export default function LandingPage({
                 File: <code className="text-zinc-400">{ANDROID_RELEASE.downloadName}</code>
                 {' · '}
                 URL:{' '}
-                <a
-                  href={ANDROID_RELEASE.url}
-                  {...ANDROID_RELEASE.linkProps}
-                  className="text-emerald-400/90 hover:text-emerald-300"
-                >
+                <a href={ANDROID_RELEASE.url} className="text-emerald-400/90 hover:text-emerald-300">
                   {ANDROID_RELEASE.directUrl}
                 </a>
               </p>
@@ -733,7 +726,7 @@ export default function LandingPage({
             </div>
             <a
               href={ANDROID_RELEASE.url}
-              {...ANDROID_RELEASE.linkProps}
+              download={ANDROID_RELEASE.downloadName}
               className="inline-flex items-center gap-2 mt-8 text-sm font-semibold text-emerald-400/90 hover:text-emerald-300 transition-colors"
             >
               <Download className="w-4 h-4" />

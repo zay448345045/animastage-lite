@@ -439,8 +439,13 @@ function MMDCameraControllerInner({
       target={[DEFAULT_ORBIT_TARGET.x, DEFAULT_ORBIT_TARGET.y, DEFAULT_ORBIT_TARGET.z]}
       minDistance={2}
       maxDistance={120}
-      minPolarAngle={MIN_POLAR_ANGLE}
-      maxPolarAngle={MAX_POLAR_ANGLE}
+      enableRotate
+      enableZoom
+      enablePan
+      touches={{
+        ONE: THREE.TOUCH.ROTATE,
+        TWO: THREE.TOUCH.DOLLY_PAN,
+      }}
     />
   );
 }

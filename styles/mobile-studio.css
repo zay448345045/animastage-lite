@@ -1,0 +1,256 @@
+/**
+ * Mobile / tablet studio layout — single column, viewport-first, safe areas.
+ */
+
+@media (max-width: 768px) {
+  :root {
+    --space-xs: 3px;
+    --space-sm: 6px;
+    --space-md: 10px;
+    --space-lg: 14px;
+    --space-xl: 20px;
+    --touch-min: 44px;
+  }
+}
+
+/* Single-column: viewport stays visible, panels as overlays */
+.studio-mobile-column {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.studio-mobile-column .studio-viewport-column {
+  flex: 1 1 auto;
+  min-height: 60dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-mobile-column #mmd-viewport {
+  flex: 1 1 60dvh;
+  min-height: 60dvh;
+}
+
+.studio-mobile-column .studio-viewport-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+}
+
+/* Onboarding / empty card — do not cover the scene */
+.studio-mobile-column .viewport-empty-card {
+  max-height: 35dvh;
+  overflow-y: auto;
+}
+
+.studio-mobile-column .viewport-empty-overlay {
+  align-items: flex-end;
+}
+
+.studio-mobile-column .result-first-bar {
+  max-height: 35dvh;
+}
+
+.studio-mobile-column .studio-viewport-stage [data-viewport-format] {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: 100%;
+}
+
+.studio-mobile-column .studio-viewport-stage [data-viewport-format='9:16'] {
+  width: auto !important;
+  height: 100% !important;
+  max-height: 100%;
+  aspect-ratio: 9 / 16;
+  margin: 0 auto;
+}
+
+.studio-mobile-column .studio-viewport-stage [data-viewport-format='16:9'] {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+}
+
+/* Landscape phone / native — more desktop-like split */
+.studio-mobile-landscape .studio-viewport-stage {
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+.studio-mobile-landscape .studio-sidebar {
+  width: min(16rem, 38vw);
+}
+
+/* Bottom timeline drawer */
+.studio-timeline-drawer {
+  flex: 0 0 auto;
+  max-height: min(42vh, 400px);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-panel);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.studio-timeline-drawer .editor-timeline-shell {
+  max-height: 100%;
+  border-top: none;
+}
+
+.studio-timeline-drawer__handle {
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.studio-timeline-drawer__handle::before {
+  content: '';
+  width: 2.5rem;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-border-subtle);
+}
+
+/* Tabbed mobile sidebar */
+.mobile-panel-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-panel-raised);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-panel-tabs__btn {
+  flex: 1 1 0;
+  min-width: 4.5rem;
+  min-height: var(--touch-min);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.mobile-panel-tabs__btn--active {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+
+/* Timeline peek — swipe up affordance */
+.studio-timeline-peek {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  padding-bottom: max(var(--space-sm), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-panel) 92%, transparent);
+  touch-action: none;
+  cursor: pointer;
+}
+
+.studio-timeline-peek__label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.studio-mobile-header .topmenu-desktop-menus {
+  display: none;
+}
+
+/* Touch-friendly controls (mobile layout only) */
+@media (max-width: 768px) {
+  .ds-btn {
+    min-height: var(--touch-min, 44px);
+  }
+
+  .ds-btn--block {
+    width: 100%;
+  }
+
+  .studio-sidebar .ds-btn:not(.ds-btn--sm) {
+    width: 100%;
+  }
+
+  .studio-sidebar input[type='range'] {
+    width: 100%;
+  }
+
+  .topmenu-mobile-actions .ds-btn {
+    min-height: 36px;
+    padding: var(--space-sm) var(--space-md);
+  }
+}
+
+/* Compact flow bar on mobile */
+.studio-flow-bar--compact {
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  padding-top: max(var(--space-sm), env(safe-area-inset-top));
+}
+
+.studio-flow-bar--compact .ds-segmented {
+  display: none;
+}
+
+/* Lighter perf HUD on mobile — pro shell uses ds-perf-hud--pro-mobile (bottom-left) */
+.studio-mobile-column:not(.studio-pro-mobile) .ds-perf-hud {
+  font-size: 9px;
+  padding: 3px 6px;
+  min-width: 0;
+  opacity: 0.72;
+  bottom: calc(4.25rem + env(safe-area-inset-bottom)) !important;
+  right: var(--space-sm) !important;
+  border-color: color-mix(in srgb, var(--color-border) 55%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 72%, transparent);
+}
+
+.studio-mobile-column:not(.studio-pro-mobile) .ds-perf-hud__row:not(.ds-perf-hud__row--primary) {
+  display: none;
+}
+
+.studio-mobile-column:not(.studio-pro-mobile) .ds-perf-hud__row--primary {
+  font-size: 9px;
+}
+
+.studio-mobile-column .viewport-perf-toast {
+  top: auto !important;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
+  transform: translateX(-50%);
+}
+
+.studio-mobile-column .viewport-perf-toast > div {
+  font-size: 9px;
+  padding: 4px 8px;
+  opacity: 0.9;
+}
+
+/* Hide hover-only affordances */
+@media (hover: none) and (pointer: coarse) {
+  .hover-only {
+    display: none !important;
+  }
+}

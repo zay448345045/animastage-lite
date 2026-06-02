@@ -1,5 +1,5 @@
 import type { ViewportFormat } from '../types';
-import { isNativeApp } from './platform';
+import { isNativeApp, isMobileRuntime } from './platform';
 
 /** Character render fidelity — independent from timeline / physics. */
 export type CharacterQuality = 'standard' | 'hd' | 'uhd4k';
@@ -98,6 +98,18 @@ export function isPortraitFormat(format: ViewportFormat): boolean {
   return format === '9:16';
 }
 
+/** Browser phone / tablet WebView — cap GPU load. */
+export function getMobileBrowserGpu(quality: CharacterQuality): CharacterQualityGpuSettings {
+  const base = getCharacterQualityPreset(quality).gpu;
+  return {
+    maxDpr: Math.min(base.maxDpr, 1.25),
+    textureAnisotropy: Math.min(base.textureAnisotropy, 2),
+    shadowMapSize: Math.min(base.shadowMapSize, 512),
+    useOutline: false,
+    enhanceMaterials: quality !== 'standard',
+  };
+}
+
 export function getCharacterQualityGpu(
   quality: CharacterQuality,
   viewportFormat: ViewportFormat = '16:9'
@@ -107,6 +119,9 @@ export function getCharacterQualityGpu(
   }
   if (isNativeApp()) {
     return getNativeLiteGpu(quality);
+  }
+  if (isMobileRuntime()) {
+    return getMobileBrowserGpu(quality);
   }
   return getCharacterQualityPreset(quality).gpu;
 }

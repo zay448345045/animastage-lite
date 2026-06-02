@@ -302,6 +302,21 @@ export interface SceneHdrSettings {
   showBackground: boolean;
 }
 
+/** Path tracer lab sliders (UI + PathTracerBridge). */
+export interface PathTracerSettings {
+  bounces: number;
+  sunAltDeg: number;
+  exposure: number;
+  aperture: number;
+}
+
+export const DEFAULT_PATH_TRACER_SETTINGS: PathTracerSettings = {
+  bounces: 3,
+  sunAltDeg: 25,
+  exposure: 1,
+  aperture: 0,
+};
+
 /** Lite tuning from mmd_rtx / mmd-character-motion (Bullet hair/skirt, wind, opacity). */
 export interface MmdLiteConfig {
   stablePhys: boolean;
@@ -351,6 +366,8 @@ export interface AppState {
   renderTier: RenderTier;
   cameraStudio: CameraStudioSettings;
   sceneHdr: SceneHdrSettings;
+  pathTracerLabEnabled?: boolean;
+  pathTracer?: PathTracerSettings;
 }
 
 export type { RtxSettings, RtxAoQuality } from './utils/rtxSettings';
