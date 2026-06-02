@@ -119,14 +119,14 @@ export default function Sidebar({
     <aside
       className={`studio-sidebar select-none font-sans ${
         isMobile
-          ? 'fixed inset-y-0 left-0 z-50 w-[min(100vw,18rem)] max-w-full shadow-2xl pt-[env(safe-area-inset-top)]'
+          ? 'studio-sidebar-drawer pt-[env(safe-area-inset-top)]'
           : 'relative'
       }`}
       id="mmd-sidebar"
     >
       {isMobile && onClose ? (
         <div
-          className="flex items-center justify-between border-b border-[var(--color-border)] md:hidden"
+          className="flex items-center justify-between border-b border-[var(--color-border)]"
           style={{ padding: 'var(--space-sm) var(--space-md)' }}
         >
           <span className="text-[var(--font-size-base)] font-semibold text-[var(--color-text-main)]">

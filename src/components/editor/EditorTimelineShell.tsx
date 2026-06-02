@@ -39,7 +39,7 @@ export default function EditorTimelineShell(props: EditorTimelineShellProps) {
       : props.activeTrack;
 
   return (
-    <div className="flex flex-col border-t border-zinc-800 bg-[#121418] max-md:max-h-[min(58vh,480px)] max-md:min-h-0 max-md:overflow-hidden shrink-0">
+    <div className="editor-timeline-shell flex flex-col border-t border-zinc-800 bg-[#121418] max-md:max-h-[min(58vh,480px)] max-md:min-h-0 max-md:overflow-hidden shrink-0">
       <div className="flex items-center gap-1 px-2 py-1 border-b border-zinc-800 bg-[#0e1014] shrink-0 overflow-x-auto">
         {(
           [

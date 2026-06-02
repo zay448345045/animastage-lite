@@ -5,6 +5,7 @@ import { DEBUG_UI } from '../../config/debugUi';
 import { Button, cn } from '../UI';
 
 interface StudioFlowBarProps {
+  compact?: boolean;
   uiMode: StudioUiMode;
   onUiModeChange: (mode: StudioUiMode) => void;
   onSaveProject: () => void;
@@ -70,6 +71,7 @@ function Segmented<T extends string>({
 }
 
 export default function StudioFlowBar({
+  compact = false,
   uiMode,
   onUiModeChange,
   onSaveProject,
@@ -87,10 +89,13 @@ export default function StudioFlowBar({
 
   return (
     <div
-      className="shrink-0 flex flex-wrap items-center justify-between gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-sm)] bg-[var(--color-bg)] border-b border-[var(--color-border)]"
+      className={cn(
+        'studio-flow-bar shrink-0 flex flex-wrap items-center justify-between gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-sm)] bg-[var(--color-bg)] border-b border-[var(--color-border)]',
+        compact && 'studio-flow-bar--compact'
+      )}
       style={{ fontSize: 'var(--font-size-base)' }}
     >
-      <div className="flex flex-wrap items-center gap-[var(--space-md)]">
+      <div className="flex flex-wrap items-center gap-[var(--space-md)] shrink-0">
         <Segmented
           aria-label="Editor mode"
           options={[
@@ -101,7 +106,7 @@ export default function StudioFlowBar({
           onChange={onUiModeChange}
         />
 
-        <div className="flex items-center gap-[var(--space-sm)]">
+        <div className="studio-flow-bar__quality flex items-center gap-[var(--space-sm)]">
           <Gauge className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" aria-hidden />
           <Segmented
             aria-label="Quality mode"
@@ -112,7 +117,7 @@ export default function StudioFlowBar({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-[var(--space-sm)]">
+      <div className="studio-flow-bar__actions flex flex-wrap items-center gap-[var(--space-sm)]">
         <Button type="button" variant="ghost" size="sm" onClick={onSaveProject} title="Download .animastage project file">
           <Save className="w-3.5 h-3.5" />
           Save

@@ -287,7 +287,7 @@ npm run indexnow:submit   # optional — ping search engines (IndexNow)
 
 ### Android app (download)
 
-Debug APK for sideload: **[app-debug.apk](/app-debug.apk)** (~57 MB) — also linked on the [landing page](https://animastage-lite.app/#android).
+Debug APK for sideload: **[app-debug.apk](/app-debug.apk)** (~133 MB) — also linked on the [landing page](https://animastage-lite.app/#android).
 
 **v1.1.0** — opens the full studio in **landscape**, immersive WebView chrome, balanced GPU defaults (same PMX/VMD workflow as the browser).
 

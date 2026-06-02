@@ -438,7 +438,7 @@ export default function TopMenu({
         </div>
  
         {/* Desktop dropdowns */}
-        <div className="hidden md:flex items-center space-x-1">
+        <div className="topmenu-desktop-menus hidden md:flex items-center space-x-1">
           {menuItems.map((menu) => (
             <div key={menu.id} className="relative">
               <button

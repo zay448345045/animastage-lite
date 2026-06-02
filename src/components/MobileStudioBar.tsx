@@ -26,7 +26,7 @@ export default function MobileStudioBar({
 
   return (
     <nav
-      className="md:hidden shrink-0 flex items-stretch border-t border-[#22252c] bg-[#0e1014]/95 backdrop-blur-md z-40 pb-[env(safe-area-inset-bottom)]"
+      className="mobile-studio-bar shrink-0 flex items-stretch border-t border-[#22252c] bg-[#0e1014]/95 backdrop-blur-md z-40 pb-[env(safe-area-inset-bottom)]"
       aria-label="Studio mobile controls"
     >
       <button type="button" onClick={onOpenMenu} className={`${btn} text-zinc-400 active:text-[#39c5bb]`}>

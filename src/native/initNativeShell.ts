@@ -7,7 +7,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 export async function initNativeShell(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
 
-  document.documentElement.classList.add('native-fullscreen');
+  document.documentElement.classList.add('native-fullscreen', 'compact-studio');
 
   try {
     await StatusBar.setOverlaysWebView({ overlay: true });

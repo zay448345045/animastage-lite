@@ -162,6 +162,14 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
   const [openTopMenuId, setOpenTopMenuId] = useState<string | null>(null);
   const [analyzingModel, setAnalyzingModel] = useState(false);
 
+  useEffect(() => {
+    if (isMobile) {
+      document.documentElement.classList.add('compact-studio');
+    } else {
+      document.documentElement.classList.remove('compact-studio');
+    }
+  }, [isMobile]);
+
   // Viewport setup states (passed to TopMenu & Viewport)
   const [showGrid, setShowGrid] = useState(true);
   const [showBones, setShowBones] = useState(true);
@@ -1134,7 +1142,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
 
   return (
     <div
-      className="flex flex-col h-screen w-screen font-sans cursor-default overflow-hidden text-[var(--color-text-main)]"
+      className={`flex flex-col h-screen w-screen font-sans cursor-default overflow-hidden text-[var(--color-text-main)]${isMobile ? ' compact-studio' : ''}`}
       style={{ background: 'var(--color-bg)' }}
       id="mmd-workspace-main"
     >
@@ -1183,6 +1191,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
       )}
       {!isViewer && (
         <StudioFlowBar
+          compact={isMobile}
           uiMode={product.uiMode}
           onUiModeChange={product.handleUiModeChange}
           onSaveProject={product.handleSaveProject}
@@ -1297,7 +1306,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
         {isMobile && showLeftSidebar && (
           <button
             type="button"
-            className="fixed inset-0 z-40 bg-black/60 md:hidden cursor-pointer"
+            className="studio-sidebar-backdrop cursor-pointer"
             aria-label="Close panel overlay"
             onClick={() => setShowLeftSidebar(false)}
           />
@@ -1371,6 +1380,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
         <div className="flex-1 flex flex-col overflow-hidden relative">
           
           <Viewport 
+            compactStudio={isMobile}
             appState={appState}
             mmdLite={appState.mmdLite}
             viewportFormat={viewportFormat}

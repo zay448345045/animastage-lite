@@ -534,7 +534,8 @@ interface ViewportProps {
     },
     mesh: import('three').SkinnedMesh
   ) => void;
-  /** Empty viewport — load featured demo. */
+  /** Compact layout — Android landscape / short viewport overlays. */
+  compactStudio?: boolean;
   onTryDemo?: () => void;
 }
 
@@ -575,6 +576,7 @@ export default function Viewport({
   highlightMaterialName = null,
   onPmxMetadataLoaded,
   onTryDemo,
+  compactStudio = false,
 }: ViewportProps) {
   const characterQuality = appState.characterQuality;
   const captureChrome = isRecordingVideo || isRecordingCapture();
@@ -771,7 +773,7 @@ export default function Viewport({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="absolute top-2 left-2 md:top-4 md:left-4 z-10 pointer-events-none select-none font-sans px-2 py-1.5 md:px-3.5 md:py-2.5 bg-[#121418]/85 text-zinc-150 border border-zinc-800 rounded-md shadow-lg backdrop-blur-md flex items-center gap-2 md:gap-3 max-w-[calc(100%-5rem)]">
+      <div className="viewport-top-chrome absolute top-2 left-2 md:top-4 md:left-4 z-10 pointer-events-none select-none font-sans px-2 py-1.5 md:px-3.5 md:py-2.5 bg-[#121418]/85 text-zinc-150 border border-zinc-800 rounded-md shadow-lg backdrop-blur-md flex items-center gap-2 md:gap-3 max-w-[calc(100%-5rem)]">
         <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-[#ff3385] rounded-full animate-pulse shadow-[0_0_8px_#ff3385] shrink-0" />
         <div className="min-w-0 truncate">
           <span className="hidden md:block text-[9px] uppercase font-mono tracking-widest text-zinc-500 font-extrabold">
@@ -783,7 +785,7 @@ export default function Viewport({
         </div>
       </div>
 
-      <div className="absolute top-2 right-2 md:top-4 md:right-4 z-10 font-mono text-[8px] md:text-[9px] flex items-center gap-1 md:gap-2 pointer-events-auto select-none flex-wrap justify-end max-w-[min(100%,calc(100%-6rem))]">
+      <div className="viewport-aspect-bar absolute top-2 right-2 md:top-4 md:right-4 z-10 font-mono text-[8px] md:text-[9px] flex items-center gap-1 md:gap-2 pointer-events-auto select-none flex-wrap justify-end max-w-[min(100%,calc(100%-6rem))]">
         {onPatchSceneBackground && onClearSceneBackground && (
           <SceneBackgroundPicker
             background={sceneBackground}
@@ -873,25 +875,25 @@ export default function Viewport({
       </div>
 
       {appState.visualFx.bloomEnabled && (
-        <div className="absolute top-16 left-4 z-10 hidden md:block bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-1.5 rounded-md shadow-lg pointer-events-none">
+        <div className="viewport-bloom-badge absolute top-16 left-4 z-10 hidden md:block bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-1.5 rounded-md shadow-lg pointer-events-none">
           Bloom FX active
         </div>
       )}
 
       {showManualMmdCameraHint && (
-        <div className="absolute top-16 right-4 z-10 max-w-xs bg-amber-950/80 border border-amber-500/40 text-amber-100 text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
+        <div className="viewport-camera-hint absolute top-16 right-4 z-10 max-w-xs bg-amber-950/80 border border-amber-500/40 text-amber-100 text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
           Manual MMD camera — drag to orbit. Turn off Manual in Camera Studio to fly with templates.
         </div>
       )}
       {showMmdTemplateHint && (
-          <div className="absolute top-16 right-4 z-10 hidden md:block max-w-xs bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
+          <div className="viewport-camera-hint viewport-camera-hint--desktop absolute top-16 right-4 z-10 hidden md:block max-w-xs bg-[#e879ff]/15 border border-[#e879ff]/40 text-[#f0d0ff] text-[10px] font-bold px-3 py-2 rounded-md shadow-lg pointer-events-none">
             MMD camera: apply a dance / emote template or enable Manual in Camera Studio. Or use{' '}
             <span className="text-white">Free</span> to orbit.
           </div>
         )}
 
       {activeModel && appState.selectedBoneId && !captureChrome && (
-        <div className="absolute top-20 max-md:top-auto max-md:bottom-[calc(3.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 md:gap-1 bg-[#121418]/90 border border-zinc-800 rounded-lg p-0.5 md:p-1 shadow-lg backdrop-blur-md pointer-events-auto">
+        <div className={`viewport-gizmo-bar absolute top-20 max-md:top-auto max-md:bottom-[calc(3.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 md:gap-1 bg-[#121418]/90 border border-zinc-800 rounded-lg p-0.5 md:p-1 shadow-lg backdrop-blur-md pointer-events-auto${compactStudio ? ' scale-90 origin-bottom' : ''}`}>
           <button
             type="button"
             onClick={() => setTransformMode('translate')}
@@ -1030,7 +1032,7 @@ export default function Viewport({
       />
 
       <div
-        className={`absolute bottom-4 right-4 z-10 pointer-events-none select-none ds-perf-hud ${
+        className={`viewport-perf-hud absolute bottom-4 right-4 z-10 pointer-events-none select-none ds-perf-hud ${
           perfStats.perfLevel === 'Lagging'
             ? 'ds-perf-hud--lagging'
             : perfStats.perfLevel === 'Okay'
