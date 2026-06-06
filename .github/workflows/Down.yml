@@ -1,0 +1,122 @@
+name: motion down
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_url:
+        description: '文件直链（多个链接用逗号隔开）'
+        required: true
+        default: 'https://github.com/mozilla/pdf.js-sample-files/raw/master/tracemonkey.pdf'
+        type: string
+      volume_size:
+        description: '分卷大小（如1900m、2g）'
+        required: false
+        default: '1900m'
+        type: string
+      compression_level:
+        description: '压缩级别（0=最快，9=最优）'
+        required: false
+        default: 0
+        type: number
+
+jobs:
+  download_split_stream_upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1440
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. 清理磁盘空间
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /var/cache/apt/archives /var/lib/docker
+          sudo docker system prune -a -f --volumes
+          df -h /
+
+      - name: 2. 流式下载+分卷+实时上传
+        id: core
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +u
+          set +e
+
+          mkdir -p large_file && cd large_file || exit 1
+          
+          FILE_URLS_STR="${{ github.event.inputs.file_url }}"
+          VOLUME_SIZE="${{ github.event.inputs.volume_size }}"
+          COMPRESS="${{ github.event.inputs.compression_level }}"
+          REPO="${{ github.repository }}"
+          
+          TOTAL_FILES=0
+          SUCCESS_FILES=0
+          FAIL_FILES=0
+          SUMMARY=""
+          RELEASE_TAG="stream_upload_$(date +%Y%m%d_%H%M%S)_${{ github.run_id }}"
+          RELEASE_NAME="批量分卷_流式上传_$(date +%Y%m%d)"
+
+          echo "=== 初始化空Release ==="
+          # 关键点：添加 --repo 参数
+          gh release create "$RELEASE_TAG" \
+            --title "$RELEASE_NAME" \
+            --notes "### 任务启动..." \
+            --draft \
+            --repo "$REPO"
+
+          FILE_URLS_CLEAN=$(echo "$FILE_URLS_STR" | sed 's/,$//' | sed 's/, /,/g')
+          IFS=',' read -ra FILE_URLS_ARRAY <<< "$FILE_URLS_CLEAN"
+          TOTAL_COUNT=${#FILE_URLS_ARRAY[@]}
+
+          for FILE_URL in "${FILE_URLS_ARRAY[@]}"; do
+            TOTAL_FILES=$((TOTAL_FILES + 1))
+            if [ -z "$FILE_URL" ]; then continue; fi
+
+            # 针对 SWH 链接优化：尝试从 URL 或参数中提取更好的文件名
+            # 如果链接包含 filename=，则优先提取它
+            FILE_NAME_RAW=$(echo "$FILE_URL" | grep -oP 'filename%3D%22\K[^%22]+' | sed 's/%22//g' || echo "file_$TOTAL_FILES")
+            if [ -z "$FILE_NAME_RAW" ]; then
+                FILE_NAME_RAW=$(basename "${FILE_URL%%\?*}")
+            fi
+            
+            FILE_NAME_CLEAN=$(echo "$FILE_NAME_RAW" | sed -E 's/[^a-zA-Z0-9._-]/_/g')
+            VOLUME_BASE_NAME="${FILE_NAME_CLEAN}_part"
+
+            echo "🚀 处理文件：$FILE_NAME_RAW"
+
+            # 流式下载并分卷
+            curl -L -A "Mozilla/5.0" --retry 3 "$FILE_URL" | \
+            7z a -v"$VOLUME_SIZE" -mx"$COMPRESS" -si "$VOLUME_BASE_NAME.7z"
+            
+            VOLUME_COUNT=$(ls -1 "$VOLUME_BASE_NAME".7z.* 2>/dev/null | wc -l)
+            if [ "$VOLUME_COUNT" -eq 0 ]; then
+               FAIL_FILES=$((FAIL_FILES + 1))
+               continue
+            fi
+
+            UPLOAD_FAIL=0
+            for VOL_FILE in "$VOLUME_BASE_NAME".7z.*; do
+              # 关键点：上传时添加 --repo 参数
+              gh release upload "$RELEASE_TAG" "$VOL_FILE" --clobber --repo "$REPO" || { UPLOAD_FAIL=1; break; }
+              rm -f "$VOL_FILE"
+            done
+
+            if [ "$UPLOAD_FAIL" -eq 0 ]; then
+              SUCCESS_FILES=$((SUCCESS_FILES + 1))
+              SUMMARY+="- ✅ $FILE_NAME_RAW (分卷: $VOLUME_COUNT)\n"
+            else
+              FAIL_FILES=$((FAIL_FILES + 1))
+              SUMMARY+="- ❌ $FILE_NAME_RAW (上传失败)\n"
+            fi
+
+            # 实时更新进度
+            gh release edit "$RELEASE_TAG" --notes "### 进度：$TOTAL_FILES / $TOTAL_COUNT \n$SUMMARY" --repo "$REPO"
+          done
+
+          # 发布 Release
+          gh release edit "$RELEASE_TAG" --draft=false --repo "$REPO"
+
+          # 输出结果给后续 Step
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "total_files=$TOTAL_COUNT" >> "$GITHUB_OUTPUT"
+          echo "success_files=$SUCCESS_FILES" >> "$GITHUB_OUTPUT"
+          echo "fail_files=$FAIL_FILES" >> "$GITHUB_OUTPUT"
