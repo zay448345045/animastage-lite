@@ -18,7 +18,7 @@ export default function BottomSheet({
   title,
   children,
   className,
-  maxHeight = 'min(58vh, 480px)',
+  maxHeight = 'min(58dvh, 480px)',
 }: BottomSheetProps) {
   if (!open) return null;
 

@@ -1,8 +1,12 @@
 import { Film, Circle } from 'lucide-react';
+import { MMD_FPS } from '../utils/playhead';
 
 interface VideoRecordPanelProps {
   busy: boolean;
   mode: 'idle' | 'offline' | 'live';
+  exportDurationSec: number;
+  maxDurationSec: number;
+  onExportDurationSecChange: (sec: number) => void;
   onRenderMp4: () => void;
   onLiveRecord: () => void;
   vertical?: boolean;
@@ -11,11 +15,19 @@ interface VideoRecordPanelProps {
 export default function VideoRecordPanel({
   busy,
   mode,
+  exportDurationSec,
+  maxDurationSec,
+  onExportDurationSecChange,
   onRenderMp4,
   onLiveRecord,
   vertical = false,
 }: VideoRecordPanelProps) {
   const liveActive = mode === 'live';
+  const clamped = Math.min(maxDurationSec, Math.max(1, exportDurationSec));
+  const frameEstimate = Math.min(
+    Math.ceil(maxDurationSec * MMD_FPS),
+    Math.max(1, Math.ceil(clamped * MMD_FPS))
+  );
 
   return (
     <div className="border border-violet-500/25 rounded-md p-2 space-y-2 bg-violet-950/15">
@@ -23,9 +35,41 @@ export default function VideoRecordPanel({
         <Film className="w-3 h-3" />
         Video recording
       </div>
+      <label className="block space-y-1">
+        <div className="flex justify-between text-[9px] font-bold text-zinc-400">
+          <span>Export length</span>
+          <span className="text-zinc-500 font-mono">
+            {clamped}s · ~{frameEstimate} fr
+          </span>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={maxDurationSec}
+          step={1}
+          value={clamped}
+          disabled={busy}
+          onChange={(e) => onExportDurationSecChange(parseInt(e.target.value, 10) || 1)}
+          className="w-full accent-violet-400"
+        />
+        <input
+          type="number"
+          min={1}
+          max={maxDurationSec}
+          value={clamped}
+          disabled={busy}
+          onChange={(e) =>
+            onExportDurationSecChange(
+              Math.min(maxDurationSec, Math.max(1, parseInt(e.target.value, 10) || 1))
+            )
+          }
+          className="w-full mt-1 px-2 py-1.5 rounded border border-zinc-700 bg-zinc-900 text-[11px] font-mono text-zinc-200"
+        />
+      </label>
       {vertical && (
         <p className="text-[8px] text-zinc-500 leading-relaxed">
-          9:16: HQ render scales to 1080×1920. Live — real-time (WebM/MP4).
+          MP4 HQ — offline render. Live — real-time while playing. On the Android app, after export
+          use the <strong className="text-zinc-400">Share</strong> menu to save to Files or Gallery.
         </p>
       )}
       <div className="flex gap-2">

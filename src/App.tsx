@@ -33,6 +33,7 @@ import { DEFAULT_RTX_SETTINGS } from './utils/rtxSettings';
 import type { CharacterQuality, RtxSettings } from './types';
 import { useTimeline } from './hooks/useTimeline';
 import { useVideoRecorder } from './hooks/useVideoRecorder';
+import { videoSaveLocationHint } from './native/saveBlob';
 import RecordingHud from './components/RecordingHud';
 import EditorTimelineShell from './components/editor/EditorTimelineShell';
 import { useClipEditor } from './hooks/useClipEditor';
@@ -174,6 +175,10 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
   const [mobilePanelTab, setMobilePanelTab] = useState<MobilePanelTab>('scene');
   const mobileSafeAppliedRef = useRef(false);
   const [openTopMenuId, setOpenTopMenuId] = useState<string | null>(null);
+  const maxExportDurationSec = Math.max(1, Math.floor(appState.maxFrames / MMD_FPS));
+  const [exportDurationSec, setExportDurationSec] = useState(() =>
+    Math.min(30, Math.max(1, Math.floor(120 / MMD_FPS)))
+  );
   const [analyzingModel, setAnalyzingModel] = useState(false);
 
   // Viewport setup states (passed to TopMenu & Viewport)
@@ -417,14 +422,30 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
     onDeleteKey: editor.handleDeleteAtPlayhead,
   });
 
+  useEffect(() => {
+    setExportDurationSec((d) => Math.min(maxExportDurationSec, Math.max(1, d)));
+  }, [maxExportDurationSec]);
+
   const videoRecorder = useVideoRecorder({
     getCanvas: () => glCanvasRef.current,
     invalidateScene: () => invalidateSceneRef.current?.(),
     maxFrames: appState.maxFrames,
+    exportDurationSec,
     viewportFormat,
     setCurrentFrame: handleSetCurrentFrame,
     setIsPlaying: handleSetIsPlaying,
   });
+
+  const videoProgressPhaseRef = useRef(videoRecorder.progress.phase);
+  useEffect(() => {
+    const phase = videoRecorder.progress.phase;
+    const prev = videoProgressPhaseRef.current;
+    videoProgressPhaseRef.current = phase;
+    if (prev !== 'done' && phase === 'done') {
+      const msg = videoRecorder.progress.message?.trim();
+      product.showToast(msg && msg.length > 10 ? msg : videoSaveLocationHint(), 6000);
+    }
+  }, [videoRecorder.progress.phase, product.showToast]);
 
   const handleRenderMp4 = useCallback(() => {
     if (videoRecorder.busy && videoRecorder.mode === 'offline') {
@@ -1258,6 +1279,9 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
       onRestartPhysics={() => modelApiRef.current?.restartPhysics()}
       videoRecordBusy={videoRecorder.busy}
       videoRecordMode={videoRecorder.mode}
+      exportDurationSec={exportDurationSec}
+      maxExportDurationSec={maxExportDurationSec}
+      onExportDurationSecChange={setExportDurationSec}
       onRenderMp4={handleRenderMp4}
       onLiveRecord={handleLiveRecord}
     />
@@ -1414,7 +1438,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
 
   return (
     <div
-      className={`flex flex-col h-[100dvh] w-screen font-sans cursor-default overflow-hidden text-[var(--color-text-main)] ${
+      className={`app-shell w-screen font-sans cursor-default text-[var(--color-text-main)] ${
         layout.isMobileLayout ? 'studio-mobile-column studio-pro-mobile' : ''
       } ${layout.isMobileLandscape ? 'studio-mobile-landscape' : ''}`}
       style={{ background: 'var(--color-bg)' }}
@@ -1531,6 +1555,9 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
         onRestartPhysics={() => modelApiRef.current?.restartPhysics()}
         videoRecordBusy={videoRecorder.busy}
         videoRecordMode={videoRecorder.mode}
+        exportDurationSec={exportDurationSec}
+        maxExportDurationSec={maxExportDurationSec}
+        onExportDurationSecChange={setExportDurationSec}
         onRenderMp4={handleRenderMp4}
         onLiveRecord={handleLiveRecord}
         onExportVmd={editor.handleExportVmd}
@@ -1585,7 +1612,7 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
       )}
 
       {/* 2. Middle section — MobileLayout (≤768px) vs DesktopLayout (≥769px) */}
-      <div className="flex-1 flex overflow-hidden relative min-h-0">
+      <div className="app-shell__main relative">
         {!isViewer && layout.isMobileLayout ? (
           <ProMobileShell
             sceneTitle={proSceneTitle}
@@ -1613,7 +1640,12 @@ export default function App({ mode = 'editor', initialProject = null }: AppProps
               });
             }}
             onShare={() => void product.handleShareScene()}
-            onExport={handleRenderMp4}
+            onExport={() =>
+              product.showToast(
+                'Экспорт: вкладка FX внизу → длина → MP4 HQ или Live. На Android надёжнее Live.',
+                5500
+              )
+            }
             shareBusy={product.shareBusy}
             onTryDemo={() => {
               product.dismissOnboarding();

@@ -14,9 +14,11 @@
 }
 
 /* Single-column: viewport stays visible, panels as overlays */
-.studio-mobile-column {
-  height: 100dvh;
-  max-height: 100dvh;
+.studio-mobile-column.app-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: var(--app-height);
+  max-height: var(--app-height);
 }
 
 .studio-mobile-column .studio-viewport-column {
@@ -89,7 +91,7 @@
 /* Bottom timeline drawer */
 .studio-timeline-drawer {
   flex: 0 0 auto;
-  max-height: min(42vh, 400px);
+  max-height: min(42dvh, 400px);
   border-top: 1px solid var(--color-border);
   background: var(--color-panel);
   display: flex;

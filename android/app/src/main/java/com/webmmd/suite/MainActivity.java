@@ -26,9 +26,8 @@ public class MainActivity extends BridgeActivity {
   }
 
   private void hideSystemUi() {
-    getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      getWindow().setDecorFitsSystemWindows(false);
       WindowInsetsController controller = getWindow().getInsetsController();
       if (controller != null) {
         controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
@@ -38,6 +37,8 @@ public class MainActivity extends BridgeActivity {
       }
       return;
     }
+
+    getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
     View decorView = getWindow().getDecorView();
     decorView.setSystemUiVisibility(

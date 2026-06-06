@@ -566,6 +566,7 @@ export function useProductLayer(opts: UseProductLayerOptions) {
     qualityMode,
     shareBusy,
     toast,
+    showToast,
     showOnboarding,
     showResultFirst,
     hasSaved,

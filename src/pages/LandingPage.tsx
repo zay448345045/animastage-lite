@@ -1,4 +1,19 @@
-import { useEffect, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import SeoHead from '../components/SeoHead';
+import OfficialProjectBlock from '../landing/OfficialProjectBlock';
+import {
+  ANDROID_RELEASE,
+  BRAND_TAGLINE,
+  LITE_AUTHOR,
+  OFFICIAL_PROJECT,
+  PRO_AUTHOR,
+  SEO_LANDING_ROUTES,
+  SITE_URL,
+} from '../landing/officialProject';
+import {
+  buildOrganizationSchema,
+  buildSoftwareApplicationSchema,
+} from '../landing/landingSchema';
 import {
   Play,
   ChevronRight,
@@ -23,49 +38,6 @@ import LandingHeroMockup from './landing/LandingHeroMockup';
 import FlowDiagram from './landing/FlowDiagram';
 import DemoGalleryGrid from './landing/DemoGalleryGrid';
 import ConversionBridge from './landing/ConversionBridge';
-
-const SITE_URL = 'https://animastage-lite.app';
-
-/** Shipped with `npm run build:android` → public/app-debug.apk */
-const ANDROID_RELEASE = {
-  /** Root-relative — works on `/` and after deploy from `public/` */
-  url: '/app-debug.apk',
-  directUrl: `${SITE_URL}/app-debug.apk`,
-  downloadName: 'AnimaStage-Lite-1.2.0-portrait.apk',
-  version: '1.2.0',
-  versionCode: 3,
-  buildLabel: 'Jun 3, 2026',
-  sizeMb: 19.4,
-  sizeHint: '~20 MB',
-  minAndroid: 'Android 6.0+ (API 23)',
-  orientation: 'Portrait (vertical)',
-  whatsNew: [
-    'Pro Mobile UI — bottom tabs, timeline sheet, settings in the menu (☰)',
-    'Portrait lock — hold the phone vertically like a native app',
-    'Smaller APK (~20 MB) — no nested bundle bloat',
-    'Timeline tracks, FPS HUD, and quality modes tuned for phone screens',
-  ],
-  highlights: [
-    'Opens straight into Studio — no marketing page on launch',
-    'Portrait-first mobile shell — Scene, Control, Camera, FX tabs',
-    'Same PMX/PMD/VMD import, timeline, Camera Studio, and MP4 export as the browser',
-    'Client-side only — files stay on your device, no account required',
-    'Balanced performance presets (Perf / Bal / Qual) in the app menu',
-  ],
-  requirements: [
-    'Phone or tablet held upright (portrait); app stays vertical',
-    'Allow install from browser or Files app (sideload debug APK)',
-    'WebGL2-capable device; 4 GB+ RAM recommended for heavy PMX',
-    'Chrome-based WebView — best on Android 10+',
-  ],
-  installSteps: [
-    'Tap Download APK below (file: app-debug.apk, ~20 MB).',
-    'If blocked: Settings → Security → install unknown apps → allow your browser or Files.',
-    'Open the downloaded APK and tap Install.',
-    'Launch AnimaStage Lite — studio opens in portrait; use ☰ for mode and templates.',
-  ],
-} as const;
-
 interface LandingPageProps {
   onStart: () => void;
   onStartDemo: () => void;
@@ -77,7 +49,7 @@ const CORE_FEATURES = [
   { icon: Upload, title: 'Load PMX / PMD + VMD', desc: 'Drop your folder — see your character move in one step.' },
   { icon: Play, title: 'Real-time playback', desc: 'Watch dances instantly — no desktop MMD required.' },
   { icon: Video, title: 'MP4 export', desc: 'Ship Shorts or widescreen video from the same tab.' },
-  { icon: Smartphone, title: 'Android app', desc: 'v1.2.0 portrait APK (~20 MB) — full studio on your phone, direct download.' },
+  { icon: Smartphone, title: 'Android app', desc: 'v1.2.3 portrait APK (~20 MB) — full studio on your phone, direct download.' },
 ] as const;
 
 const ADVANCED_FEATURES = [
@@ -144,10 +116,8 @@ export default function LandingPage({
 }: LandingPageProps) {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
-  useEffect(() => {
-    document.title = 'Run MMD in Your Browser — No Install | AnimaStage Lite';
-
-    const faqSchema = {
+  const homeJsonLd = [
+    {
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
       mainEntity: FAQ.map((item) => ({
@@ -155,33 +125,24 @@ export default function LandingPage({
         name: item.q,
         acceptedAnswer: { '@type': 'Answer', text: item.a },
       })),
-    };
-
-    const script = document.createElement('script');
-    script.type = 'application/ld+json';
-    script.id = 'landing-jsonld';
-    script.textContent = JSON.stringify([
-      faqSchema,
-      {
-        '@context': 'https://schema.org',
-        '@type': 'SoftwareApplication',
-        name: 'AnimaStage Lite',
-        applicationCategory: 'MultimediaApplication',
-        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        description: 'MMD online — PMX viewer, VMD player browser, no install.',
-        url: SITE_URL,
-        operatingSystem: 'Android, Web',
-        softwareVersion: ANDROID_RELEASE.version,
-        downloadUrl: ANDROID_RELEASE.directUrl,
-        fileSize: `${ANDROID_RELEASE.sizeMb}MB`,
-      },
-    ]);
-    document.head.appendChild(script);
-    return () => document.getElementById('landing-jsonld')?.remove();
-  }, []);
+    },
+    buildSoftwareApplicationSchema(
+      SITE_URL,
+      'Official AnimaStage Lite — MMD online browser studio with WebGL, WASM physics, PMX/VMD, MP4 export.'
+    ),
+    buildOrganizationSchema(),
+  ];
 
   return (
-    <div className="min-h-screen landing-mesh text-zinc-100 font-sans antialiased">
+    <div className="w-full overflow-x-hidden landing-mesh text-zinc-100 font-sans antialiased">
+      <SeoHead
+        title="Run MMD in Your Browser — No Install | AnimaStage Lite"
+        description="Official AnimaStage Lite — MMD online in your browser. PMX viewer, VMD player, WebGL + WASM physics, MP4 export. Android APK. Free · client-side."
+        canonical={SITE_URL}
+        keywords="MMD online, MMD Android, MikuMikuDance browser, run MMD on phone, PMX viewer online, WebMMD official"
+        ogUrl={SITE_URL}
+        jsonLd={homeJsonLd}
+      />
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/5 glass-panel-strong">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
@@ -206,6 +167,17 @@ export default function LandingPage({
             </button>
             <button type="button" onClick={() => scrollTo('android')} className="hover:text-white cursor-pointer transition-colors">
               Android
+            </button>
+            <a href="/about" className="hover:text-white transition-colors">
+              About
+            </a>
+            {SEO_LANDING_ROUTES.map((r) => (
+              <a key={r.path} href={r.path} className="hover:text-white transition-colors">
+                {r.label}
+              </a>
+            ))}
+            <button type="button" onClick={() => scrollTo('official')} className="hover:text-white cursor-pointer transition-colors">
+              Official
             </button>
             <a href="https://github.com/FBNonaMe/animastage-lite" target="_blank" rel="noreferrer" className="hover:text-white inline-flex items-center gap-1 transition-colors">
               <Github className="w-4 h-4" />
@@ -233,6 +205,7 @@ export default function LandingPage({
             </PrimaryBtn>
           </div>
         </div>
+        <p className="text-center text-[10px] text-zinc-600 pb-1.5 px-4 hidden md:block">{BRAND_TAGLINE}</p>
       </header>
 
       <main>
@@ -294,6 +267,8 @@ export default function LandingPage({
             </div>
           </div>
         </section>
+
+        <OfficialProjectBlock />
 
         {/* §2 Instant Demo */}
         <section id="demo" className="py-16 md:py-20 scroll-mt-16 border-t border-white/5">
@@ -564,7 +539,10 @@ export default function LandingPage({
               </h2>
               <p className="text-zinc-400 text-sm sm:text-base max-w-2xl mx-auto">
                 Install <strong className="text-zinc-200 font-semibold">v{ANDROID_RELEASE.version}</strong> — the same
-                editor as animastage-lite.app, packaged for portrait WebView. Free debug APK (~20 MB), direct download below.
+                editor as animastage-lite.app, packaged for portrait WebView. Free debug APK (~20 MB), direct download below.{' '}
+                <a href="/mmd-android" className="text-cyan-400 hover:text-cyan-300 font-semibold">
+                  MMD Android guide →
+                </a>
               </p>
             </div>
 
@@ -742,18 +720,32 @@ export default function LandingPage({
       </main>
 
       <footer className="border-t border-white/5 py-8 text-center text-xs text-zinc-600">
-        <p>
+        <p className="text-zinc-400 font-semibold mb-2">{BRAND_TAGLINE}</p>
+        <p className="text-[11px] text-zinc-600 mb-4 max-w-md mx-auto">{OFFICIAL_PROJECT.statement}</p>
+        <nav className="flex flex-wrap justify-center gap-x-3 gap-y-1 mb-3" aria-label="Footer">
+          <a href="/about" className="text-zinc-400 hover:text-cyan-400">
+            About
+          </a>
+          {SEO_LANDING_ROUTES.map((r) => (
+            <a key={r.path} href={r.path} className="text-zinc-400 hover:text-cyan-400">
+              {r.label}
+            </a>
+          ))}
           <a href="#android" className="text-zinc-400 hover:text-emerald-400">
             Android v{ANDROID_RELEASE.version}
           </a>
-          {' · '}
-          <a href="https://github.com/FBNonaMe/animastage-lite" className="text-zinc-400 hover:text-cyan-400">
-            GitHub
+          <a href={OFFICIAL_PROJECT.liteRepo} className="text-zinc-400 hover:text-cyan-400">
+            Lite GitHub
           </a>
-          {' · '}
-          <a href="https://animastagepro.dev/" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-cyan-400">
+          <a href={OFFICIAL_PROJECT.proRepo} className="text-zinc-400 hover:text-violet-300">
+            Pro GitHub
+          </a>
+          <a href={OFFICIAL_PROJECT.proSite} target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-cyan-400">
             Pro <ExternalLink className="w-3 h-3 inline" />
           </a>
+        </nav>
+        <p className="text-[10px] text-zinc-600">
+          Lite · {LITE_AUTHOR.name} · Pro · {PRO_AUTHOR.name} · {OFFICIAL_PROJECT.siteUrl}
         </p>
       </footer>
     </div>

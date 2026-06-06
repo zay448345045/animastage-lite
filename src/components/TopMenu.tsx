@@ -66,6 +66,9 @@ interface TopMenuProps {
   onRestartPhysics?: () => void;
   videoRecordBusy?: boolean;
   videoRecordMode?: 'idle' | 'offline' | 'live';
+  exportDurationSec?: number;
+  maxExportDurationSec?: number;
+  onExportDurationSecChange?: (sec: number) => void;
   onRenderMp4?: () => void;
   onLiveRecord?: () => void;
   onExportVmd?: () => void;
@@ -122,6 +125,9 @@ export default function TopMenu({
   onRestartPhysics,
   videoRecordBusy,
   videoRecordMode,
+  exportDurationSec,
+  maxExportDurationSec,
+  onExportDurationSecChange,
   onRenderMp4,
   onLiveRecord,
   onExportVmd,
@@ -363,7 +369,7 @@ export default function TopMenu({
   const renderMenuPanel = (menu: (typeof menuItems)[number]) => {
     if ('panel' in menu && menu.panel) {
       return (
-        <div className="mt-2 w-full max-h-[min(70vh,520px)] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] rounded-md shadow-lg">
+        <div className="mt-2 w-full max-h-[min(70dvh,520px)] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] rounded-md shadow-lg">
           <FxSettingsPanel
             visualFx={visualFx}
             mmdLite={mmdLite}
@@ -381,6 +387,9 @@ export default function TopMenu({
             onRestartPhysics={onRestartPhysics}
             videoRecordBusy={videoRecordBusy}
             videoRecordMode={videoRecordMode}
+            exportDurationSec={exportDurationSec}
+            maxExportDurationSec={maxExportDurationSec}
+            onExportDurationSecChange={onExportDurationSecChange}
             onRenderMp4={onRenderMp4}
             onLiveRecord={onLiveRecord}
             pathTracerLabEnabled={pathTracerLabEnabled}
@@ -392,7 +401,7 @@ export default function TopMenu({
       );
     }
     return (
-      <div className="mt-2 w-full max-h-[min(60vh,480px)] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] rounded-md p-1.5">
+      <div className="mt-2 w-full max-h-[min(60dvh,480px)] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] rounded-md p-1.5">
         {menu.items!.map((item, index) => {
           if ('type' in item && item.type === 'separator') {
             return <div key={index} className="h-px bg-[#2a2e38] my-1" />;
@@ -484,7 +493,7 @@ export default function TopMenu({
                     onClick={() => setActiveMenu(null)}
                   />
                   {'panel' in menu && menu.panel ? (
-                    <div className="absolute left-0 mt-1.5 w-72 max-h-[80vh] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] shadow-[0_10px_25px_rgba(0,0,0,0.5)] z-50 rounded-md">
+                    <div className="absolute left-0 mt-1.5 w-72 max-h-[80dvh] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] shadow-[0_10px_25px_rgba(0,0,0,0.5)] z-50 rounded-md">
                       <div className="px-2 py-2 border-b border-zinc-800 flex items-center justify-between">
                         <span className="text-[10px] font-bold text-[#76b900] uppercase tracking-wide">
                           FX & RTX
@@ -510,6 +519,9 @@ export default function TopMenu({
                         onRestartPhysics={onRestartPhysics}
                         videoRecordBusy={videoRecordBusy}
                         videoRecordMode={videoRecordMode}
+                        exportDurationSec={exportDurationSec}
+                        maxExportDurationSec={maxExportDurationSec}
+                        onExportDurationSecChange={onExportDurationSecChange}
                         onRenderMp4={onRenderMp4}
                         onLiveRecord={onLiveRecord}
                         pathTracerLabEnabled={pathTracerLabEnabled}
@@ -519,7 +531,7 @@ export default function TopMenu({
                       />
                     </div>
                   ) : (
-                  <div className="absolute left-0 mt-1.5 w-60 max-h-[70vh] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] shadow-[0_10px_25px_rgba(0,0,0,0.5)] p-1.5 z-50 rounded-md animate-in fade-in duration-75">
+                  <div className="absolute left-0 mt-1.5 w-60 max-h-[70dvh] overflow-y-auto bg-[#1a1d24] border border-[#2c3245] shadow-[0_10px_25px_rgba(0,0,0,0.5)] p-1.5 z-50 rounded-md animate-in fade-in duration-75">
                     {menu.items!.map((item, index) => {
                       if ('type' in item && item.type === 'separator') {
                         return <div key={index} className="h-px bg-[#2a2e38] my-1" />;

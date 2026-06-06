@@ -87,7 +87,7 @@ export default function MobileTemplateSheet({
         aria-label="Close templates"
         onClick={onClose}
       />
-      <div className="relative bg-[#121418] border-t border-zinc-700 rounded-t-2xl shadow-2xl max-h-[min(65vh,480px)] flex flex-col mb-[calc(52px+env(safe-area-inset-bottom))]">
+      <div className="relative bg-[#121418] border-t border-zinc-700 rounded-t-2xl shadow-2xl max-h-[min(65dvh,480px)] flex flex-col mb-[calc(52px+env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-800 shrink-0">
           <span className="text-sm font-bold text-[#39c5bb] flex items-center gap-2">
             <Music2 className="w-4 h-4" />

@@ -25,7 +25,7 @@ export default function DemoGalleryOverlay({
       aria-modal="true"
       aria-label="Demo gallery"
     >
-      <div className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl border border-[#2a2f38] bg-[#16181d] shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg max-h-[90dvh] flex flex-col rounded-xl border border-[#2a2f38] bg-[#16181d] shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#22252c] shrink-0">
           <div>
             <h2 className="text-sm font-bold text-white">Pick a demo scene</h2>

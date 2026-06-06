@@ -96,6 +96,12 @@ export default function ProMobileShell({
     [activeTab, snapLevel, closeSheet, onMobilePanelTabChange]
   );
 
+  /** Top-bar video icon — open FX export panel instead of starting MP4 HQ (OOM on Android WebView). */
+  const handleTopExport = useCallback(() => {
+    openTab('fx');
+    onExport();
+  }, [openTab, onExport]);
+
   const openMenu = useCallback(() => {
     setMenuOpen(true);
     setMenuSnap(2);
@@ -116,7 +122,7 @@ export default function ProMobileShell({
           title={sceneTitle}
           onMenu={openMenu}
           onShare={onShare}
-          onExport={onExport}
+          onExport={handleTopExport}
           shareBusy={shareBusy}
         />
       </div>

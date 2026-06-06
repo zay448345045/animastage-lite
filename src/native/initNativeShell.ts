@@ -1,21 +1,23 @@
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { StatusBar, Style } from '@capacitor/status-bar';
+import {
+  enableImmersiveStatusBar,
+  installStatusBarPeekGestures,
+} from './immersiveStatusBar';
 
 /** Capacitor hooks — safe to call in browser (no-ops). */
 export async function initNativeShell(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
 
-  document.documentElement.classList.add('native-fullscreen', 'compact-studio');
+  document.documentElement.classList.add(
+    'capacitor-native',
+    'compact-studio',
+    'studio-viewport-lock'
+  );
 
-  try {
-    await StatusBar.setOverlaysWebView({ overlay: true });
-    await StatusBar.hide();
-    await StatusBar.setStyle({ style: Style.Dark });
-  } catch {
-    /* status bar plugin optional on some devices */
-  }
+  await enableImmersiveStatusBar();
+  installStatusBarPeekGestures();
 
   try {
     await SplashScreen.hide();

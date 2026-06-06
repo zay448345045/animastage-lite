@@ -2,9 +2,11 @@
  * Pro Mobile Mode — immersive native-style studio (≤768px).
  */
 
-.studio-pro-mobile {
-  height: 100dvh;
-  max-height: 100dvh;
+.studio-pro-mobile.app-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: var(--app-height);
+  max-height: var(--app-height);
   background: #08090c;
 }
 
@@ -184,6 +186,7 @@
 
 /* Top bar — glass */
 .pro-topbar {
+  padding-top: var(--safe-top);
   background: color-mix(in srgb, #0e1014 72%, transparent);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);

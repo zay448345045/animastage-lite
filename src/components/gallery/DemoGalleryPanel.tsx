@@ -145,7 +145,7 @@ export default function DemoGalleryPanel({
       <div
         className={`grid gap-2 ${
           compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'
-        } max-h-[min(52vh,420px)] overflow-y-auto pr-0.5`}
+        } max-h-[min(52dvh,420px)] overflow-y-auto pr-0.5`}
       >
         {filtered.map((demo) => (
           <DemoCard

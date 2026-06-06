@@ -537,7 +537,7 @@ export default function Timeline({
 
             <div
               className={`flex-1 overflow-y-auto min-h-0 ${
-                isProMobile ? 'min-h-[100px]' : 'max-md:max-h-[28vh]'
+                isProMobile ? 'min-h-[100px]' : 'max-md:max-h-[28dvh]'
               }`}
             >
               {TRACK_DEFINITIONS.map((track) => {

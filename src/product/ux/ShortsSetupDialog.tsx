@@ -95,7 +95,7 @@ export default function ShortsSetupDialog({
           </button>
         </div>
 
-        <div className="px-4 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="px-4 py-4 space-y-5 max-h-[70dvh] overflow-y-auto">
           <section>
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-4 h-4 text-pink-400" />

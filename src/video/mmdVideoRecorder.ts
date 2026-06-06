@@ -2,6 +2,7 @@
  * MP4 export — WebCodecs + mp4-muxer (mmd_rtx renderOfflineMp4) with MediaRecorder fallback.
  */
 import { MMD_FPS } from '../utils/playhead';
+import { isNativeApp } from '../utils/platform';
 import {
   SHORTS_EXPORT_HEIGHT,
   SHORTS_EXPORT_WIDTH,
@@ -9,6 +10,7 @@ import {
   VIEWPORT_916_WIDTH,
 } from '../utils/viewportFormat';
 import type { ViewportFormat } from '../types';
+import { saveBlob } from '../native/saveBlob';
 import { beginRecordingCapture, endRecordingCapture } from './recordingCapture';
 
 export type VideoRecordRange = 'full' | 'timeline';
@@ -19,6 +21,8 @@ export interface VideoRecordOptions {
   range?: VideoRecordRange;
   viewportFormat?: ViewportFormat;
   maxFrames: number;
+  /** Cap export length (seconds); clamped to timeline length */
+  exportDurationSec?: number;
   loopIn?: number;
   loopOut?: number;
 }
@@ -34,15 +38,6 @@ export type FrameAdvanceCallback = (frame: number) => void | Promise<void>;
 /** Recreate encoder before Chrome reclaims it (~60s without encode calls). */
 const ENCODER_IDLE_RECYCLE_MS = 45_000;
 
-function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 8000);
-}
-
 function timestampName(): string {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 }
@@ -51,23 +46,43 @@ function resolveFrameRange(
   opts: VideoRecordOptions
 ): { start: number; end: number } {
   const max = Math.max(1, opts.maxFrames);
+  const fps = Math.max(1, opts.fps ?? MMD_FPS);
   if (opts.range === 'timeline' && opts.loopOut != null && opts.loopIn != null && opts.loopOut > opts.loopIn) {
     return {
       start: Math.max(0, Math.floor(opts.loopIn)),
       end: Math.min(max, Math.ceil(opts.loopOut)),
     };
   }
-  return { start: 0, end: max };
+  let end = max;
+  if (opts.exportDurationSec != null && opts.exportDurationSec > 0) {
+    end = Math.min(max, Math.max(1, Math.ceil(opts.exportDurationSec * fps)));
+  }
+  return { start: 0, end };
 }
 
 function exportDimensions(
   canvas: HTMLCanvasElement,
   format: ViewportFormat
 ): { width: number; height: number } {
+  let width: number;
+  let height: number;
   if (format === '9:16') {
-    return { width: SHORTS_EXPORT_WIDTH, height: SHORTS_EXPORT_HEIGHT };
+    width = SHORTS_EXPORT_WIDTH;
+    height = SHORTS_EXPORT_HEIGHT;
+  } else {
+    width = canvas.width;
+    height = canvas.height;
   }
-  return { width: canvas.width, height: canvas.height };
+  if (isNativeApp()) {
+    const maxEdge = format === '9:16' ? 1280 : 960;
+    const edge = Math.max(width, height);
+    if (edge > maxEdge) {
+      const scale = maxEdge / edge;
+      width = Math.max(2, Math.round((width * scale) / 2) * 2);
+      height = Math.max(2, Math.round((height * scale) / 2) * 2);
+    }
+  }
+  return { width, height };
 }
 
 async function pickH264Codec(
@@ -340,10 +355,10 @@ export async function renderOfflineMp4(
     codec,
     width: w,
     height: h,
-    bitrate,
+    bitrate: isNativeApp() ? Math.min(bitrate, 12_000_000) : bitrate,
     framerate: fps,
     latencyMode: 'quality',
-    hardwareAcceleration: 'prefer-hardware',
+    hardwareAcceleration: isNativeApp() ? 'prefer-software' : 'prefer-hardware',
   };
 
   let bundle: EncoderBundle;
@@ -400,11 +415,14 @@ export async function renderOfflineMp4(
       closeEncoderSafe(bundle.encoder);
       muxer.finalize();
       const buffer = muxer.target.buffer;
-      downloadBlob(new Blob([buffer], { type: 'video/mp4' }), `mmd-render-${timestampName()}.mp4`);
+      const mp4Name = `mmd-render-${timestampName()}.mp4`;
+      const saved = await saveBlob(new Blob([buffer], { type: 'video/mp4' }), mp4Name);
       onProgress?.({
         phase: 'done',
         progress: 1,
-        message: `Done — ${totalFrames} frames @ ${fps} FPS`,
+        message: saved.ok
+          ? `${saved.message} (${totalFrames} fr @ ${fps} FPS)`
+          : saved.message,
       });
     } else {
       await drainEncoder(bundle.encoder);
@@ -437,7 +455,7 @@ export interface LiveRecordHandle {
 export function startLiveRecord(
   canvas: HTMLCanvasElement,
   opts: VideoRecordOptions,
-  onStop?: (blob: Blob, ext: string) => void
+  onStop?: (blob: Blob, ext: string, saved?: import('../native/saveBlob').SaveBlobResult) => void
 ): LiveRecordHandle | null {
   const mime = pickRecorderMime();
   if (!mime || typeof MediaRecorder === 'undefined') {
@@ -470,8 +488,10 @@ export function startLiveRecord(
     endRecordingCapture();
     stream.getTracks().forEach((t) => t.stop());
     const blob = new Blob(chunks, { type: finalMime });
-    downloadBlob(blob, `mmd-record-${timestampName()}.${ext}`);
-    onStop?.(blob, ext);
+    const fileName = `mmd-record-${timestampName()}.${ext}`;
+    void saveBlob(blob, fileName).then((saved) => {
+      onStop?.(blob, ext, saved);
+    });
   };
 
   beginRecordingCapture();

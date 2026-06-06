@@ -4,6 +4,10 @@ import { isNativeApp } from './utils/platform';
 
 const App = lazy(() => import('./App.tsx'));
 const ViewerPage = lazy(() => import('./pages/ViewerPage.tsx'));
+const MmdAndroidLandingPage = lazy(() => import('./pages/MmdAndroidLandingPage.tsx'));
+const MmdBrowserLandingPage = lazy(() => import('./pages/MmdBrowserLandingPage.tsx'));
+const MmdOnlineLandingPage = lazy(() => import('./pages/MmdOnlineLandingPage.tsx'));
+const AboutPage = lazy(() => import('./pages/AboutPage.tsx'));
 
 function normalizePath(pathname: string): string {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -36,8 +40,18 @@ function resolveInitialPath(): string {
   return normalized;
 }
 
+function useStudioViewportLock(path: string) {
+  useEffect(() => {
+    const lock = isAppPath(path) || isViewerPath(path);
+    document.documentElement.classList.toggle('studio-viewport-lock', lock);
+    return () => document.documentElement.classList.remove('studio-viewport-lock');
+  }, [path]);
+}
+
 export default function RootRouter() {
   const [path, setPath] = useState(resolveInitialPath);
+
+  useStudioViewportLock(path);
 
   useEffect(() => {
     const onPopState = () => setPath(normalizePath(window.location.pathname));
@@ -52,6 +66,12 @@ export default function RootRouter() {
     const target = pathname.startsWith('/') ? pathname : `/${pathname}`;
     window.history.pushState({}, '', `${target}${search}`);
     setPath(normalizePath(target));
+  };
+
+  const studioNav = {
+    onStart: () => navigateTo('/app'),
+    onStartDemo: () => navigateTo('/app?demo=party-dance'),
+    onStartDemoId: (id: string) => navigateTo(`/app?demo=${encodeURIComponent(id)}`),
   };
 
   if (isViewerPath(path)) {
@@ -70,12 +90,44 @@ export default function RootRouter() {
     );
   }
 
+  if (path === '/mmd-android' || path.startsWith('/mmd-android/')) {
+    return (
+      <Suspense fallback={<StudioBootScreen />}>
+        <MmdAndroidLandingPage {...studioNav} />
+      </Suspense>
+    );
+  }
+
+  if (path === '/mmd-browser' || path.startsWith('/mmd-browser/')) {
+    return (
+      <Suspense fallback={<StudioBootScreen />}>
+        <MmdBrowserLandingPage {...studioNav} />
+      </Suspense>
+    );
+  }
+
+  if (path === '/mmd-online' || path.startsWith('/mmd-online/')) {
+    return (
+      <Suspense fallback={<StudioBootScreen />}>
+        <MmdOnlineLandingPage {...studioNav} />
+      </Suspense>
+    );
+  }
+
+  if (path === '/about' || path.startsWith('/about/')) {
+    return (
+      <Suspense fallback={<StudioBootScreen />}>
+        <AboutPage onStart={studioNav.onStart} />
+      </Suspense>
+    );
+  }
+
   return (
     <LandingPage
-      onStart={() => navigateTo('/app')}
-      onStartDemo={() => navigateTo('/app?demo=party-dance')}
+      onStart={studioNav.onStart}
+      onStartDemo={studioNav.onStartDemo}
       onStartDemoGallery={() => navigateTo('/app?demo=gallery')}
-      onStartDemoId={(id) => navigateTo(`/app?demo=${encodeURIComponent(id)}`)}
+      onStartDemoId={studioNav.onStartDemoId}
     />
   );
 }

@@ -17,7 +17,7 @@ export default function TimelinePeekSheet({
   onOpenChange,
   title = 'Timeline',
   children,
-  maxHeight = 'min(50vh, 420px)',
+  maxHeight = 'min(50dvh, 420px)',
 }: TimelinePeekSheetProps) {
   const touchStartY = useRef(0);
 

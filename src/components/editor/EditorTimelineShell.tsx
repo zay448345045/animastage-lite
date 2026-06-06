@@ -48,7 +48,7 @@ export default function EditorTimelineShell({
       className={
         embeddedInSheet
           ? 'editor-timeline-shell editor-timeline-shell--pro flex flex-col flex-1 min-h-0 bg-[#121418] overflow-hidden border-0'
-          : 'editor-timeline-shell flex flex-col border-t border-zinc-800 bg-[#121418] shrink-0 min-h-0 max-h-[min(38vh,360px)] overflow-hidden'
+          : 'editor-timeline-shell flex flex-col border-t border-zinc-800 bg-[#121418] shrink-0 min-h-0 max-h-[min(38dvh,360px)] overflow-hidden'
       }
     >
       <div className="flex items-center gap-1 px-2 py-1 border-b border-zinc-800 bg-[#0e1014] shrink-0 overflow-x-auto">

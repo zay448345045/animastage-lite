@@ -28,6 +28,9 @@ interface FxSettingsPanelProps {
   onRestartPhysics?: () => void;
   videoRecordBusy?: boolean;
   videoRecordMode?: 'idle' | 'offline' | 'live';
+  exportDurationSec?: number;
+  maxExportDurationSec?: number;
+  onExportDurationSecChange?: (sec: number) => void;
   onRenderMp4?: () => void;
   onLiveRecord?: () => void;
   pathTracerLabEnabled?: boolean;
@@ -88,6 +91,9 @@ export default function FxSettingsPanel({
   onRestartPhysics,
   videoRecordBusy = false,
   videoRecordMode = 'idle',
+  exportDurationSec = 30,
+  maxExportDurationSec = 120,
+  onExportDurationSecChange,
   onRenderMp4,
   onLiveRecord,
   pathTracerLabEnabled = false,
@@ -457,10 +463,13 @@ export default function FxSettingsPanel({
             9:16 RTX
           </button>
         </div>
-      {onRenderMp4 && onLiveRecord && (
+      {onRenderMp4 && onLiveRecord && onExportDurationSecChange && (
         <VideoRecordPanel
           busy={videoRecordBusy}
           mode={videoRecordMode}
+          exportDurationSec={exportDurationSec}
+          maxDurationSec={maxExportDurationSec}
+          onExportDurationSecChange={onExportDurationSecChange}
           onRenderMp4={onRenderMp4}
           onLiveRecord={onLiveRecord}
           vertical={vertical}

@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "../styles/viewport-shell.css";
 @import "../styles/design-system.css";
 @import "../styles/mobile-studio.css";
 @import "../styles/pro-mobile.css";
@@ -26,32 +27,7 @@
   background: #39c5bb;
 }
 
-html,
-body,
-#root {
-  min-height: 100dvh;
-}
-
-body {
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-}
-
-html.native-fullscreen,
-html.native-fullscreen body,
-html.native-fullscreen #root {
-  height: 100dvh;
-  min-height: 100dvh;
-  overflow: hidden;
-}
-
-html.native-fullscreen body {
-  padding:
-    env(safe-area-inset-top)
-    env(safe-area-inset-right)
-    env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
-}
+/* Full-height shell: styles/viewport-shell.css */
 
 /* Landing — SaaS glass + mesh */
 .landing-mesh {

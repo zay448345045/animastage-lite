@@ -10,11 +10,13 @@ import {
   type VideoRecordProgress,
 } from '../video/mmdVideoRecorder';
 import { isRecordingCapture } from '../video/recordingCapture';
+import { isNativeApp } from '../utils/platform';
 
 export interface UseVideoRecorderOptions {
   getCanvas: () => HTMLCanvasElement | null;
   invalidateScene?: () => void;
   maxFrames: number;
+  exportDurationSec: number;
   viewportFormat: ViewportFormat;
   setCurrentFrame: (frame: number) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -26,6 +28,7 @@ export function useVideoRecorder({
   getCanvas,
   invalidateScene,
   maxFrames,
+  exportDurationSec,
   viewportFormat,
   setCurrentFrame,
   setIsPlaying,
@@ -48,15 +51,22 @@ export function useVideoRecorder({
   const buildOpts = useCallback(
     (partial?: Partial<VideoRecordOptions>): VideoRecordOptions => ({
       fps: MMD_FPS,
-      bitrateMbps: viewportFormat === '9:16' ? 28 : 40,
+      bitrateMbps: isNativeApp()
+        ? viewportFormat === '9:16'
+          ? 12
+          : 16
+        : viewportFormat === '9:16'
+          ? 28
+          : 40,
       range: 'full',
       maxFrames,
+      exportDurationSec,
       loopIn,
       loopOut,
       viewportFormat,
       ...partial,
     }),
-    [maxFrames, viewportFormat, loopIn, loopOut]
+    [maxFrames, exportDurationSec, viewportFormat, loopIn, loopOut]
   );
 
   const advanceFrame = useCallback(
@@ -132,7 +142,8 @@ export function useVideoRecorder({
       if (loopOut != null && loopIn != null && loopOut > loopIn) {
         return { start: Math.floor(loopIn), end: Math.min(max, Math.ceil(loopOut)) };
       }
-      return { start: 0, end: max };
+      const durEnd = Math.min(max, Math.max(1, Math.ceil(exportDurationSec * MMD_FPS)));
+      return { start: 0, end: durEnd };
     })();
 
     liveStartFrameRef.current = start;
@@ -151,13 +162,17 @@ export function useVideoRecorder({
       const handle = startLiveRecord(
         canvas,
         buildOpts({ bitrateMbps: viewportFormat === '9:16' ? 24 : 32 }),
-        () => {
+        (_blob, _ext, saved) => {
           liveRef.current = null;
           setMode('idle');
           setBusy(false);
           setIsPlaying(savedPlayingRef.current);
-          setProgress({ phase: 'done', progress: 1, message: 'Recording saved' });
-          setTimeout(() => setProgress({ phase: 'idle', progress: 0, message: '' }), 3000);
+          setProgress({
+            phase: 'done',
+            progress: 1,
+            message: saved?.message ?? 'Live recording finished — check share menu to save',
+          });
+          setTimeout(() => setProgress({ phase: 'idle', progress: 0, message: '' }), 5000);
         }
       );
 
@@ -180,6 +195,7 @@ export function useVideoRecorder({
     getCanvas,
     busy,
     maxFrames,
+    exportDurationSec,
     loopIn,
     loopOut,
     advanceFrame,

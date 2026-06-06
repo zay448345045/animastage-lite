@@ -16,7 +16,7 @@ export default function ProMobileTopBar({
   shareBusy = false,
 }: ProMobileTopBarProps) {
   return (
-    <header className="pro-topbar shrink-0 z-[45] flex items-center gap-2 h-12 max-h-12 px-3 pt-[env(safe-area-inset-top)]">
+    <header className="pro-topbar shrink-0 z-[45] flex items-center gap-2 min-h-12 px-3">
       <button
         type="button"
         onClick={onMenu}
@@ -41,7 +41,8 @@ export default function ProMobileTopBar({
         type="button"
         onClick={onExport}
         className="pro-topbar__btn min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-zinc-200"
-        aria-label="Export video"
+        aria-label="Open export settings"
+        title="Export (FX panel)"
       >
         <Video className="w-5 h-5" />
       </button>
