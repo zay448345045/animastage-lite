@@ -11,6 +11,7 @@ import {
   Video,
   Database,
   Camera as CameraIcon,
+  Clapperboard,
   Layers,
   Cpu,
   Music2,
@@ -30,7 +31,14 @@ import {
   PathTracerSettings,
 } from '../types';
 import FxSettingsPanel from './FxSettingsPanel';
+import type { useVisualStyles } from '../stylePacks/useVisualStyles';
+import type { VcsApi } from '../product/vcs';
+import type { AppState } from '../types';
+import type { SceneComposerState } from '../sceneComposer';
+import type { SmartVideoMetadata, SmartMetadataLocale, SocialPlatformId } from '../smartMetadata/types';
 import { ANIMATION_TEMPLATES, TEMPLATE_CATEGORY_LABELS, DANCE_PICKER_CATEGORIES } from '../templates/animationTemplates';
+
+type VisualStylesApi = ReturnType<typeof useVisualStyles>;
 
 interface TopMenuProps {
   physicsMode: PhysicsMode;
@@ -64,6 +72,7 @@ interface TopMenuProps {
   captureCamera?: () => CameraSnapshot | null;
   onFlyToBookmark?: (snapshot: CameraSnapshot) => void;
   onRestartPhysics?: () => void;
+  onFixPhysics?: () => void;
   videoRecordBusy?: boolean;
   videoRecordMode?: 'idle' | 'offline' | 'live';
   exportDurationSec?: number;
@@ -71,6 +80,14 @@ interface TopMenuProps {
   onExportDurationSecChange?: (sec: number) => void;
   onRenderMp4?: () => void;
   onLiveRecord?: () => void;
+  onCinemaRender?: () => void;
+  videoMetadata?: SmartVideoMetadata | null;
+  showVideoInformation?: boolean;
+  onRegenerateMetadata?: () => void;
+  onMetadataLocaleChange?: (locale: SmartMetadataLocale) => void;
+  onMetadataPlatformChange?: (platform: SocialPlatformId) => void;
+  onMetadataTitleSelect?: (index: number) => void;
+  onMetadataCopyFeedback?: (message: string) => void;
   onExportVmd?: () => void;
   onNewClip?: () => void;
   onUndo?: () => void;
@@ -89,6 +106,15 @@ interface TopMenuProps {
   pathTracer?: PathTracerSettings;
   onSetPathTracerLabEnabled?: (enabled: boolean) => void;
   onPatchPathTracer?: (patch: Partial<PathTracerSettings>) => void;
+  onOpenSmartStudio?: () => void;
+  onEnterSmartStudioMode?: (mode: 'showcase' | 'photo' | 'video') => void;
+  onOpenCineStudio?: () => void;
+  onOpenReferenceCameraStudio?: () => void;
+  visualStyles?: VisualStylesApi;
+  vcs?: VcsApi;
+  appState?: AppState;
+  onPatchSceneComposer?: (patch: Partial<SceneComposerState>) => void;
+  onReplaceSceneComposer?: (next: SceneComposerState) => void;
 }
 
 export default function TopMenu({
@@ -123,6 +149,7 @@ export default function TopMenu({
   captureCamera,
   onFlyToBookmark,
   onRestartPhysics,
+  onFixPhysics,
   videoRecordBusy,
   videoRecordMode,
   exportDurationSec,
@@ -130,6 +157,14 @@ export default function TopMenu({
   onExportDurationSecChange,
   onRenderMp4,
   onLiveRecord,
+  onCinemaRender,
+  videoMetadata,
+  showVideoInformation,
+  onRegenerateMetadata,
+  onMetadataLocaleChange,
+  onMetadataPlatformChange,
+  onMetadataTitleSelect,
+  onMetadataCopyFeedback,
   onExportVmd,
   onNewClip,
   onUndo,
@@ -148,6 +183,15 @@ export default function TopMenu({
   pathTracer,
   onSetPathTracerLabEnabled,
   onPatchPathTracer,
+  onOpenSmartStudio,
+  onEnterSmartStudioMode,
+  onOpenCineStudio,
+  onOpenReferenceCameraStudio,
+  visualStyles,
+  vcs,
+  appState,
+  onPatchSceneComposer,
+  onReplaceSceneComposer,
 }: TopMenuProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -352,6 +396,24 @@ export default function TopMenu({
           icon: <CameraIcon className={`w-4 h-4 ${showCameraHelper ? 'text-emerald-400' : ''}`} />,
           action: () => setShowCameraHelper(!showCameraHelper)
         },
+        ...(onOpenCineStudio
+          ? [
+              {
+                label: 'Cine Studio',
+                icon: <Clapperboard className="w-4 h-4 text-cyan-400" />,
+                action: () => onOpenCineStudio(),
+              },
+            ]
+          : []),
+        ...(onOpenReferenceCameraStudio
+          ? [
+              {
+                label: 'Reference Camera Studio',
+                icon: <CameraIcon className="w-4 h-4 text-pink-400" />,
+                action: () => onOpenReferenceCameraStudio(),
+              },
+            ]
+          : []),
         {
           label: showPhysicsBodies ? 'Hide Physics Hitboxes' : 'Show Physics Hitboxes',
           icon: <Cpu className={`w-4 h-4 ${showPhysicsBodies ? 'text-emerald-400' : ''}`} />,
@@ -385,6 +447,7 @@ export default function TopMenu({
             captureCamera={captureCamera}
             onFlyToBookmark={onFlyToBookmark}
             onRestartPhysics={onRestartPhysics}
+            onFixPhysics={onFixPhysics}
             videoRecordBusy={videoRecordBusy}
             videoRecordMode={videoRecordMode}
             exportDurationSec={exportDurationSec}
@@ -392,10 +455,27 @@ export default function TopMenu({
             onExportDurationSecChange={onExportDurationSecChange}
             onRenderMp4={onRenderMp4}
             onLiveRecord={onLiveRecord}
+            onCinemaRender={onCinemaRender}
+            videoMetadata={videoMetadata}
+            showVideoInformation={showVideoInformation}
+            onRegenerateMetadata={onRegenerateMetadata}
+            onMetadataLocaleChange={onMetadataLocaleChange}
+            onMetadataPlatformChange={onMetadataPlatformChange}
+            onMetadataTitleSelect={onMetadataTitleSelect}
+            onMetadataCopyFeedback={onMetadataCopyFeedback}
             pathTracerLabEnabled={pathTracerLabEnabled}
             pathTracer={pathTracer}
             onSetPathTracerLabEnabled={onSetPathTracerLabEnabled}
             onPatchPathTracer={onPatchPathTracer}
+            onOpenSmartStudio={onOpenSmartStudio}
+            onEnterSmartStudioMode={onEnterSmartStudioMode}
+            onOpenCineStudio={onOpenCineStudio}
+            onOpenReferenceCameraStudio={onOpenReferenceCameraStudio}
+            visualStyles={visualStyles}
+            vcs={vcs}
+            appState={appState}
+            onPatchSceneComposer={onPatchSceneComposer}
+            onReplaceSceneComposer={onReplaceSceneComposer}
           />
         </div>
       );
@@ -517,6 +597,7 @@ export default function TopMenu({
                         captureCamera={captureCamera}
                         onFlyToBookmark={onFlyToBookmark}
                         onRestartPhysics={onRestartPhysics}
+            onFixPhysics={onFixPhysics}
                         videoRecordBusy={videoRecordBusy}
                         videoRecordMode={videoRecordMode}
                         exportDurationSec={exportDurationSec}
@@ -524,10 +605,27 @@ export default function TopMenu({
                         onExportDurationSecChange={onExportDurationSecChange}
                         onRenderMp4={onRenderMp4}
                         onLiveRecord={onLiveRecord}
+                        onCinemaRender={onCinemaRender}
+                        videoMetadata={videoMetadata}
+                        showVideoInformation={showVideoInformation}
+                        onRegenerateMetadata={onRegenerateMetadata}
+                        onMetadataLocaleChange={onMetadataLocaleChange}
+                        onMetadataPlatformChange={onMetadataPlatformChange}
+                        onMetadataTitleSelect={onMetadataTitleSelect}
+                        onMetadataCopyFeedback={onMetadataCopyFeedback}
                         pathTracerLabEnabled={pathTracerLabEnabled}
                         pathTracer={pathTracer}
                         onSetPathTracerLabEnabled={onSetPathTracerLabEnabled}
                         onPatchPathTracer={onPatchPathTracer}
+                        onOpenSmartStudio={onOpenSmartStudio}
+                        onEnterSmartStudioMode={onEnterSmartStudioMode}
+                        onOpenCineStudio={onOpenCineStudio}
+            onOpenReferenceCameraStudio={onOpenReferenceCameraStudio}
+                        visualStyles={visualStyles}
+                        vcs={vcs}
+                        appState={appState}
+                        onPatchSceneComposer={onPatchSceneComposer}
+                        onReplaceSceneComposer={onReplaceSceneComposer}
                       />
                     </div>
                   ) : (
